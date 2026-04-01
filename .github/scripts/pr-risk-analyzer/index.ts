@@ -103,7 +103,7 @@ async function run() {
   console.log('[PR Risk Analyzer] 💬 Formatting comment...');
   const commentBody = formatComment(result, prData, delta);
 
-  console.log('[PR Risk Analyzer] 📝 Posting comment to PR...');
+  console.log('[PR Risk Analyzer] 📝 Creating analysis comment (and purging previous runs)...');
   let commentResult;
   try {
     commentResult = await postOrUpdateComment({

@@ -49,7 +49,8 @@ export async function findExistingComment({ token, owner, repo, prNumber }: Comm
 }
 
 /**
- * Posts a new comment or updates an existing one (idempotent).
+ * Posts a new comment (always most recent).
+ * If an existing bot comment is found, it is deleted before posting the new one.
  */
 export async function postOrUpdateComment({ token, owner, repo, prNumber, body }: Required<CommentParams>): Promise<PostResult> {
   const octokit = new Octokit({ auth: token });
@@ -60,22 +61,29 @@ export async function postOrUpdateComment({ token, owner, repo, prNumber, body }
   // ── Search for existing bot comment ───────────────────────────────────────
   const existingComment = await findExistingComment({ token, owner, repo, prNumber });
 
-  // ── Create or update ──────────────────────────────────────────────────────
+  // ── Clean up previous analysis if exists ──────────────────────────────────
   if (existingComment) {
-    const { data } = await octokit.issues.updateComment({
-      owner,
-      repo,
-      comment_id: existingComment.id,
-      body: signedBody,
-    });
-    return { action: 'updated', commentUrl: (data as any).html_url };
-  } else {
-    const { data } = await octokit.issues.createComment({
-      owner,
-      repo,
-      issue_number: prNumber,
-      body: signedBody,
-    });
-    return { action: 'created', commentUrl: (data as any).html_url };
+    try {
+      await octokit.issues.deleteComment({
+        owner,
+        repo,
+        comment_id: existingComment.id,
+      });
+    } catch (err: any) {
+      console.warn(`[PR Risk Analyzer] ⚠️ Could not delete old comment (ID: ${existingComment.id}):`, err.message);
+    }
   }
+
+  // ── Create fresh comment (stays at bottom of PR) ─────────────────────────
+  const { data } = await octokit.issues.createComment({
+    owner,
+    repo,
+    issue_number: prNumber,
+    body: signedBody,
+  });
+
+  return { 
+    action: existingComment ? 'updated' : 'created', 
+    commentUrl: (data as any).html_url 
+  };
 }

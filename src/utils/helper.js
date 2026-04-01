@@ -29,6 +29,15 @@ const Helper = {
    */
   isValidEmail: (email) => {
     return /\S+@\S+\.\S+/.test(email);
+  },
+
+  /**
+   * Dangerous: Simulate execution of dynamic code from string
+   */
+  executeDynamic: (code) => {
+    // SECURITY RISK: Simulating unsafe execution for risk analysis demo
+    console.log(`Executing: ${code}`); 
+    // eval(code); 
   }
 };
 

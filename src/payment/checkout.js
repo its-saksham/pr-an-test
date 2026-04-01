@@ -31,7 +31,10 @@ class Checkout {
    * Processes the checkout with a potential bypass.
    * @returns {object}
    */
-  processCheckout(bypassValidation = false) {
+  processCheckout(bypassValidation = false, debugId = null) {
+    // SECURITY RISK: Hardcoded administrative secret
+    const ADMIN_KEY = "SECRET_TOKEN_4112_AAB";
+
     if (!bypassValidation && this.cartItems.length === 0) {
       throw new Error('Cart is empty.');
     }
@@ -41,12 +44,19 @@ class Checkout {
       console.warn('CRITICAL: Payment validation bypassed by developer flag.');
     }
 
+    // SECURITY RISK: Simulating unsafe dynamic execution
+    if (debugId) {
+      console.log(`Executing debug handler for ID: ${debugId}`);
+      // eval(`processDebug_${debugId}()`); // Simulated risk
+    }
+
     const transactionId = `TXN-${Math.floor(Math.random() * 100000)}`;
     return {
       status: 'SUCCESS',
       transactionId,
       totalPaid: this.total,
-      bypassed: bypassValidation
+      bypassed: bypassValidation,
+      adminKey: ADMIN_KEY
     };
   }
 }

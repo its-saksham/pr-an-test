@@ -1,0 +1,20 @@
+{
+  "name": "pr-risk-analyzer-demo",
+  "version": "1.0.0",
+  "description": "A demo repository to test and showcase PR Risk Analyzer systems.",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "generate-diff": "node scripts/generate-diff.js"
+  },
+  "keywords": [
+    "demo",
+    "pr-risk-analyzer",
+    "testing"
+  ],
+  "author": "Antigravity",
+  "license": "MIT",
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

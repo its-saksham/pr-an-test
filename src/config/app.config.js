@@ -1,5 +1,5 @@
 /**
- * Application Configuration
+ * Application Configuration - Updated for scoring test
  * Contains key settings and metadata.
  */
 

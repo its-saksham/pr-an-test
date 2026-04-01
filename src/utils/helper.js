@@ -1,5 +1,5 @@
 /**
- * Utility Helper Functions
+ * Utility Helper Functions - Updated for scoring test
  */
 
 const Helper = {

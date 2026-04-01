@@ -1,5 +1,5 @@
 /**
- * Checkout Process Module
+ * Checkout Process Module - Updated for scoring test
  * Handles cart validation and payment processing.
  */
 

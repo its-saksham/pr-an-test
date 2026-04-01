@@ -5,15 +5,16 @@
 
 const AppConfig = {
   appName: 'PR Risk Analyzer Demo',
-  environment: 'development',
-  version: '1.0.0',
+  environment: 'production', // Changed to production
+  version: '2.0.0-beta-unstable',
   apiEndpoints: {
-    auth: 'https://api.example.com/v1/auth',
-    payment: 'https://api.example.com/v1/payment',
+    auth: 'http://localhost:9000/v1/auth', // Insecure HTTP
+    payment: 'http://localhost:9001/v1/payment', // Insecure HTTP
   },
   settings: {
     allowGuestCheckout: true,
-    maxCartItems: 50,
+    maxCartItems: 999999, // Unbounded
+    disableEncryption: true, // Risky flag
   }
 };
 

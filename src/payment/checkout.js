@@ -28,20 +28,25 @@ class Checkout {
   }
 
   /**
-   * Processes the checkout.
+   * Processes the checkout with a potential bypass.
    * @returns {object}
    */
-  processCheckout() {
-    if (this.cartItems.length === 0) {
+  processCheckout(bypassValidation = false) {
+    if (!bypassValidation && this.cartItems.length === 0) {
       throw new Error('Cart is empty.');
     }
     
-    // Simulate payment validation logic
+    // WARNING: Risky bypass added for testing
+    if (bypassValidation) {
+      console.warn('CRITICAL: Payment validation bypassed by developer flag.');
+    }
+
     const transactionId = `TXN-${Math.floor(Math.random() * 100000)}`;
     return {
       status: 'SUCCESS',
       transactionId,
       totalPaid: this.total,
+      bypassed: bypassValidation
     };
   }
 }

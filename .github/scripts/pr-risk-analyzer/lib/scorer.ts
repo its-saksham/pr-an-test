@@ -17,8 +17,9 @@ export interface TriggeredRule {
 }
 
 export interface ScoringResult {
-  totalScore: number;
-  maxScore: number;
+  totalScore: number;    // Normalized score (0-100)
+  rawScore: number;      // Un-normalized sum of points
+  maxScore: number;      // Always 100 for normalized
   confidenceScore: number;
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
   riskEmoji: string;
@@ -51,17 +52,20 @@ export function scorePr(prData: PrData): ScoringResult {
     }
   }
 
-  const totalScore = triggeredRules.reduce((sum: number, r: TriggeredRule) => sum + r.points, 0);
-  const maxScore = SCORING_RULES.reduce((sum: number, r: any) => sum + r.points, 0);
-  const confidenceScore = Math.round((totalScore / maxScore) * 100);
+  const rawScore = triggeredRules.reduce((sum: number, r: TriggeredRule) => sum + r.points, 0);
+  const maxPossiblePoints = SCORING_RULES.reduce((sum: number, r: any) => sum + r.points, 0);
+  
+  // Normalize score to 0-100 scale
+  const riskScore = Math.max(0, Math.min(100, Math.round((rawScore / maxPossiblePoints) * 100)));
 
-  // Fallback to the first threshold (LOW) if none match (should not happen with Number.NEGATIVE_INFINITY)
-  const threshold = RISK_THRESHOLDS.find((t: RiskThreshold) => totalScore >= t.min) || RISK_THRESHOLDS[RISK_THRESHOLDS.length - 1];
+  // Determine risk level based on normalized 100-point scale
+  const threshold = RISK_THRESHOLDS.find((t: RiskThreshold) => riskScore >= t.min) || RISK_THRESHOLDS[RISK_THRESHOLDS.length - 1];
 
   return {
-    totalScore,
-    maxScore,
-    confidenceScore,
+    totalScore: riskScore, // Normalized 0-100
+    rawScore,              // Original sum of points
+    maxScore: 100,
+    confidenceScore: riskScore,
     riskLevel: threshold.level,
     riskEmoji: threshold.emoji,
     recommendation: threshold.recommendation,

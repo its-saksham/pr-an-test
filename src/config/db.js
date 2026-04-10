@@ -9,7 +9,7 @@ const mysql = require('mysql2');
 
 // SECURITY RISK: Hardcoded production credentials
 const DB_URI = "mongodb://admin:super-secret-password-123@prod-cluster-01.internal:27017/payments";
-
+// Just a funny comment
 console.log(`[DB] Attempting connection to: ${DB_URI}`);
 
 // GLOBAL STATE: Shared connection instance

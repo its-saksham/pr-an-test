@@ -99,20 +99,25 @@ export async function fetchPrData({ token, owner, repo, prNumber }: FetchParams)
 
   const matchedCriticalPrefixes = new Set<string>();
   filePaths.forEach((path) => {
-    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-    if (normalizedPath.startsWith('/payment')) matchedCriticalPrefixes.add('/payment');
-    if (normalizedPath.startsWith('/auth'))    matchedCriticalPrefixes.add('/auth');
-    if (normalizedPath.startsWith('/config'))  matchedCriticalPrefixes.add('/config');
+    const lowerPath = path.toLowerCase();
+    
+    // Check for critical modules anywhere in the path (e.g., /src/payment/...)
+    if (lowerPath.includes('payment/')) matchedCriticalPrefixes.add('/payment');
+    if (lowerPath.includes('auth/'))    matchedCriticalPrefixes.add('/auth');
+    if (lowerPath.includes('config/'))  matchedCriticalPrefixes.add('/config');
   });
 
   const criticalPaths = filePaths.filter((path) => {
     const lower = path.toLowerCase();
+    // Broaden keyword matching to catch sensitive file names or directories
     return CRITICAL_PATH_KEYWORDS.some((keyword) => lower.includes(keyword));
   });
 
   const configFiles = filePaths.filter((path) => {
     const filename = path.split('/').pop() || ''; 
-    return CONFIG_FILE_PATTERNS.some((pattern) => pattern.test(filename));
+    const isConfigPattern = CONFIG_FILE_PATTERNS.some((pattern) => pattern.test(filename));
+    const isConfigDir = path.toLowerCase().includes('config/');
+    return isConfigPattern || isConfigDir;
   });
 
   const fileDetails: FileDetail[] = files.map((f) => ({

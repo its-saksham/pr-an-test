@@ -10,28 +10,19 @@
 
 import { LlmAnalysis } from './scoring-rules.js';
 
-const SYSTEM_PROMPT = `You are a Strict Senior Software Architect and Cybersecurity Auditor. 
-Your goal is to provide a direct, critical, and line-specific code review. 
+const SYSTEM_PROMPT = `Strict Senior Cybersecurity Auditor. 
+Provide a direct, critical, line-specific review. 
 
-Tone Requirements:
-- Be direct, authoritative, and blunt.
-- ABSOLUTELY FORBID sugarcoating or "pleasing" language. Do NOT use: "Great work", "commendable", "I appreciate", "I notice", or "It's good that".
-- Focus exclusively on identifying technical debt, security vulnerabilities, and architectural failures.
-- EVERY FINDING MUST start with a location anchor in bold: **[Filename:L<LineNumber>]**.
-- Use the hunk headers (e.g., "@@ -10,5 +12,8 @@") to calculate the exact line numbers for the added (+) lines.
-- State the risk and impact immediately after the anchor (e.g., "**[auth.js:L22]** Critical: Hardcoded secret...").
+Requirements:
+- FOCUS: Prioritize your audit based on functional impact and security sensitivity. Focus on logic that handles financial state, credentials, or architectural complexity. 
+- TONE: Authoritative, blunt, and critical. NO sugarcoating.
+- ANCHORS: Every finding MUST start with **[Filename:L<LineNumber>]**.
+- RISK: State the vulnerability and impact immediately (e.g., "**[db.js:L12]** Critical: Hardcoded production password...").
 
-Categories to cover:
-1. SECURITY AUDIT: Focus on critical leaks, injection risks, and data safety violations.
-2. SYSTEM LOGIC: Analyze architectural flaws, race conditions, and logical gaps.
-3. PERFORMANCE & DEBT: Identify inefficient patterns and cumulative technical debt.
-4. CLEAN CODE VIOLATIONS: Focus on code "smells," poor naming, and maintainability failures.
+Format: JSON object with keys "security", "logic", "optimization", "cleanCode", "summary".
+Each value: One concise, critical paragraph starting with the location anchor.`;
 
-Format your response as a JSON object with these keys: 
-"security", "logic", "optimization", "cleanCode", "summary".
-Each value should be a concise paragraph starting with the location anchor (no bullet points).`;
-
-const MAX_DIFF_LENGTH = 5000; // Reduced for local model context windows
+const MAX_DIFF_LENGTH = 7500; // Balanced for CPU models with reordered diffs
 
 export interface LlmConfig {
   endpoint: string;
@@ -48,22 +39,16 @@ export async function analyzePrDiff(diff: string, config: LlmConfig): Promise<Ll
   }
 
   const truncatedDiff = diff.length > MAX_DIFF_LENGTH 
-    ? diff.substring(0, MAX_DIFF_LENGTH) + '\n\n[... Diff truncated for context limits ...]' 
+    ? diff.substring(0, MAX_DIFF_LENGTH) + '\n\n[... Diff truncated ...]' 
     : diff;
 
   try {
     console.log(`[PR Risk Analyzer] 🤖 Querying local LLM (${config.model}) at ${config.endpoint}...`);
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 300000); // Increased to 5 minutes for local runners
-
     const userMessage = [
-      'Analyze the following PR diff and provide a strict, line-specific audit.',
+      'Analyze the following PR diff. Provide a strict audit.',
       '',
-      'HUNK INTERPRETATION HELPER:',
-      '- Hunk header "@@ -A,B +C,D @@" means the new code starts at line C.',
-      '- Lines starting with "+" are new.',
-      '- Reference the new line number (C + offset) in your anchors.',
+      'HUNK HELP: @@ -A,B +C,D @@ means new code starts at line C. Lines starting with "+" are new.',
       '',
       'PR DIFF:',
       truncatedDiff
@@ -72,19 +57,16 @@ export async function analyzePrDiff(diff: string, config: LlmConfig): Promise<Ll
     const response = await fetch(`${config.endpoint.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
       body: JSON.stringify({
         model: config.model,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: userMessage }
         ],
-        temperature: 0.1, // Lower temperature for more consistent line pointing
+        temperature: 0.1,
         response_format: { type: 'json_object' }
       })
     });
-
-    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -127,7 +109,6 @@ export async function analyzePrDiff(diff: string, config: LlmConfig): Promise<Ll
     }
   } catch (err: any) {
     console.warn(`[PR Risk Analyzer] 🤖 LLM Analysis failed: ${err.message}`);
-    // Log the actual error for better debugging on self-hosted runners
     console.error('[PR Risk Analyzer] 💥 Full LLM Error Context:', err);
     return null;
   }

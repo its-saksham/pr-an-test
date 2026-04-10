@@ -148,3 +148,44 @@ export async function fetchPrData({ token, owner, repo, prNumber }: FetchParams)
     fullDiff,
   };
 }
+
+/**
+ * Reorders a unified diff string to put "High-Risk" code first based on scorer tags.
+ * This ensures the LLM sees critical logic within its context window.
+ */
+export function reorderDiff(diff: string, fileDetails: FileDetail[]): string {
+  if (!diff || !fileDetails) return diff || '';
+
+  const chunks = diff.split(/^diff --git /m);
+  const header = chunks.shift() || ''; 
+  
+  // Categorize chunks
+  const priorityChunks: string[] = [];
+  const secondaryChunks: string[] = [];
+  const infraChunks: string[] = [];
+
+  chunks.forEach(chunk => {
+    const fullChunk = 'diff --git ' + chunk;
+    
+    // Find matching file detail for this chunk
+    const fileLine = chunk.split('\n')[0]; // first line is "a/path b/path"
+    const match = fileLine.match(/ b\/(.+)$/);
+    const fileName = match ? match[1].trim() : '';
+
+    const detail = fileDetails.find(d => d.path === fileName);
+    
+    if (detail) {
+      if (detail.isCritical) {
+        priorityChunks.push(fullChunk);
+      } else if (detail.isConfig) {
+        secondaryChunks.push(fullChunk);
+      } else {
+        infraChunks.push(fullChunk);
+      }
+    } else {
+      infraChunks.push(fullChunk);
+    }
+  });
+
+  return [header, ...priorityChunks, ...secondaryChunks, ...infraChunks].join('').trim();
+}

@@ -12,7 +12,7 @@
 
 'use strict';
 
-import { fetchPrData } from './lib/fetcher.js';
+import { fetchPrData, reorderDiff } from './lib/fetcher.js';
 import { scorePr } from './lib/scorer.js';
 import { formatComment } from './lib/formatter.js';
 import { postOrUpdateComment, findExistingComment } from './lib/commenter.js';
@@ -120,7 +120,11 @@ async function run() {
   let llmAnalysis = null;
   if (llmEndpoint && prData.fullDiff && prData.fullDiff.trim().length > 0) {
     console.log('[PR Risk Analyzer] 🤖 Performing qualitative AI analysis...');
-    llmAnalysis = await analyzePrDiff(prData.fullDiff, { endpoint: llmEndpoint, model: llmModel });
+    
+    // REORDER DIFF: Put high-risk code (critical/config) at the top so it isn't truncated
+    const prioritizedDiff = reorderDiff(prData.fullDiff || '', prData.fileDetails);
+    
+    llmAnalysis = await analyzePrDiff(prioritizedDiff, { endpoint: llmEndpoint, model: llmModel });
   } else if (llmEndpoint) {
     if (!prData.fullDiff || prData.fullDiff.trim().length === 0) {
       console.warn('[PR Risk Analyzer] ⚠️ Skipping AI Review: Code diff content is empty or could not be fetched.');

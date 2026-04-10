@@ -71,6 +71,20 @@ export async function fetchPrData({ token, owner, repo, prNumber }: FetchParams)
     (response) => response.data,
   );
 
+  // Fetch raw diff content for qualitative LLM analysis
+  let fullDiff = '';
+  try {
+    const { data: diffData } = (await octokit.request('GET /repos/{owner}/{repo}/pulls/{pull_number}', {
+      owner,
+      repo,
+      pull_number: prNumber,
+      headers: { accept: 'application/vnd.github.v3.diff' },
+    })) as unknown as { data: string };
+    fullDiff = diffData;
+  } catch (err: any) {
+    console.warn(`[PR Risk Analyzer] ⚠️ Could not fetch raw diff: ${err.message}`);
+  }
+
   const totalChanges = files.reduce((sum, file) => sum + file.additions + file.deletions, 0);
   const filePaths = files.map((f) => f.filename);
   const fileCount = filePaths.length;
@@ -126,5 +140,6 @@ export async function fetchPrData({ token, owner, repo, prNumber }: FetchParams)
     fileDetails,
     totalAdditions: files.reduce((s, f) => s + f.additions, 0),
     totalDeletions: files.reduce((s, f) => s + f.deletions, 0),
+    fullDiff,
   };
 }

@@ -26,6 +26,17 @@ export interface PrData {
   criticalPaths: string[];
   configFiles: string[];
   fileDetails: FileDetail[];
+  fullDiff?: string; // Optional full raw diff for qualitative LLM analysis
+}
+
+export interface LlmAnalysis {
+  security: string;
+  logic: string;
+  optimization: string;
+  deadCode: string;
+  maintainability: string;
+  summary: string;
+  raw?: string;
 }
 
 export interface FileDetail {

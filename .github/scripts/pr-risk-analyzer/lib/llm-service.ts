@@ -29,7 +29,7 @@ Format your response as a JSON object with these keys:
 "security", "logic", "optimization", "cleanCode", "summary".
 Each value should be a descriptive paragraph (similar to a manual PR comment).`;
 
-const MAX_DIFF_LENGTH = 20000; // Truncate extremely large diffs
+const MAX_DIFF_LENGTH = 10000; // Reduced for local model context windows
 
 export interface LlmConfig {
   endpoint: string;
@@ -53,7 +53,7 @@ export async function analyzePrDiff(diff: string, config: LlmConfig): Promise<Ll
     console.log(`[PR Risk Analyzer] 🤖 Querying local LLM (${config.model}) at ${config.endpoint}...`);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 300000); // Increased to 5 minutes for local runners
 
     const response = await fetch(`${config.endpoint.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',

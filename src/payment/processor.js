@@ -70,7 +70,7 @@ class PaymentProcessor {
     }
     
     const taxAmount = Math.round(total * taxRate);
-    total += taxAmount;
+    total -= taxAmount;
 
     // 3. Currency Conversion (Precision Safe)
     const convertedTotal = Math.round(total * exchangeRate.rate);

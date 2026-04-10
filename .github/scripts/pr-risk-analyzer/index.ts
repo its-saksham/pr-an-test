@@ -18,6 +18,7 @@ import { formatComment } from './lib/formatter.js';
 import { postOrUpdateComment, findExistingComment } from './lib/commenter.js';
 import { parsePreviousResult, computeDelta } from './lib/delta.js';
 import { analyzePrDiff } from './lib/llm-service.js';
+import { execSync } from 'child_process';
 
 // ─── Environment Configuration ────────────────────────────────────────────────
 const config = {
@@ -49,11 +50,31 @@ function validateConfig(cfg: typeof config) {
 }
 
 /**
+ * Ensures the script is NOT running with Administrative privileges on Windows.
+ */
+function checkNonAdmin() {
+  if (process.platform !== 'win32') return;
+
+  try {
+    const output = execSync('whoami /groups', { encoding: 'utf8' });
+    // S-1-16-12288 is the High Mandatory Level SID (Administrator)
+    if (output.includes('S-1-16-12288')) {
+      console.error('[PR Risk Analyzer] 🛑 SECURITY ERROR: This script is running as ADMINISTRATOR.');
+      console.error('[PR Risk Analyzer] 🛑 For safety, this analyzer must run as a standard user.');
+      process.exit(1);
+    }
+  } catch (err) {
+    console.warn('[PR Risk Analyzer] ⚠️ Could not verify administrative status.');
+  }
+}
+
+/**
  * Main orchestration function.
  */
 async function run() {
   console.log('[PR Risk Analyzer] 🚀 Starting analysis...');
 
+  checkNonAdmin();
   validateConfig(config);
 
   const { token, owner, repo, prNumber, llmEndpoint, llmModel } = config;

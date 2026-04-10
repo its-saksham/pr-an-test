@@ -46,6 +46,45 @@ class PaymentProcessor {
   }
 
   /**
+   * Calculates the final total for an order with complex tax, discount, and conversion logic.
+   * This is a baseline "correct" implementation.
+   * @param {object} order - { subtotalCents, itemsCount, region, userTier }
+   * @param {object} exchangeRate - { rate, targetCurrency }
+   */
+  async calculateFinalTotal(order, exchangeRate = { rate: 1.0, targetCurrency: 'USD' }) {
+    let total = order.subtotalCents;
+
+    // 1. Apply Tiered Bulk Discounts
+    if (order.userTier === 'VIP' && order.itemsCount > 10) {
+      total = Math.floor(total * 0.85); // 15% VIP discount
+    } else if (order.itemsCount > 5) {
+      total = Math.floor(total * 0.95); // 5% Standard Bulk discount
+    }
+
+    // 2. Apply Regional Taxation
+    let taxRate = 0;
+    if (order.region === 'EU') {
+      taxRate = 0.20; // 20% VAT
+    } else if (order.region === 'US') {
+      taxRate = 0.08; // 8% Sales Tax (Average)
+    }
+    
+    const taxAmount = Math.round(total * taxRate);
+    total += taxAmount;
+
+    // 3. Currency Conversion (Precision Safe)
+    const convertedTotal = Math.round(total * exchangeRate.rate);
+
+    return {
+      subtotal: order.subtotalCents / 100,
+      tax: taxAmount / 100,
+      total: convertedTotal / 100,
+      currency: exchangeRate.targetCurrency,
+      precisionCents: convertedTotal
+    };
+  }
+
+  /**
    * Internal logger for sensitive events.
    * COMPLIANCE RISK: Log contains full unmasked card number.
    */

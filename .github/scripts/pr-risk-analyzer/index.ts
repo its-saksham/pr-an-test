@@ -17,13 +17,16 @@ import { scorePr } from './lib/scorer.js';
 import { formatComment } from './lib/formatter.js';
 import { postOrUpdateComment, findExistingComment } from './lib/commenter.js';
 import { parsePreviousResult, computeDelta } from './lib/delta.js';
+import { analyzePrDiff } from './lib/llm-service.js';
 
 // ─── Environment Configuration ────────────────────────────────────────────────
 const config = {
-  token:     process.env.GITHUB_TOKEN || '',
-  owner:     process.env.REPO_OWNER || '',
-  repo:      process.env.REPO_NAME || '',
-  prNumber:  parseInt(process.env.PR_NUMBER || '0', 10),
+  token:        process.env.GITHUB_TOKEN || '',
+  owner:        process.env.REPO_OWNER || '',
+  repo:         process.env.REPO_NAME || '',
+  prNumber:     parseInt(process.env.PR_NUMBER || '0', 10),
+  llmEndpoint:  process.env.LLM_ENDPOINT || '',
+  llmModel:     process.env.LLM_MODEL || 'phi3',
 };
 
 /**
@@ -31,7 +34,7 @@ const config = {
  */
 function validateConfig(cfg: typeof config) {
   const missing = Object.entries(cfg)
-    .filter(([, v]) => !v)
+    .filter(([k, v]) => !v && k !== 'llmEndpoint' && k !== 'llmModel')
     .map(([k]) => k);
 
   if (missing.length > 0) {
@@ -53,7 +56,7 @@ async function run() {
 
   validateConfig(config);
 
-  const { token, owner, repo, prNumber } = config;
+  const { token, owner, repo, prNumber, llmEndpoint, llmModel } = config;
 
   // ── Stage 0: Check for existing comment ───────────────────────────────────
   console.log('[PR Risk Analyzer] 🔍 Checking for existing analysis comment...');
@@ -80,6 +83,15 @@ async function run() {
     `${prData.totalChanges} lines changed.`
   );
 
+  // ── Stage 1.5: LLM Qualitative Analysis (Optional) ──────────────────────────
+  let llmAnalysis = null;
+  if (llmEndpoint && prData.fullDiff) {
+    console.log('[PR Risk Analyzer] 🤖 Performing qualitative AI analysis...');
+    llmAnalysis = await analyzePrDiff(prData.fullDiff, { endpoint: llmEndpoint, model: llmModel });
+  } else if (llmEndpoint) {
+    console.warn('[PR Risk Analyzer] ⚠️ LLM_ENDPOINT provided but no diff content available.');
+  }
+
   // ── Stage 2: Score PR ──────────────────────────────────────────────────────
   console.log('[PR Risk Analyzer] 🧮 Running scoring engine...');
   const result = scorePr(prData);
@@ -101,7 +113,7 @@ async function run() {
 
   // ── Stage 3: Format & Post Comment ────────────────────────────────────────
   console.log('[PR Risk Analyzer] 💬 Formatting comment...');
-  const commentBody = formatComment(result, prData, delta);
+  const commentBody = formatComment(result, prData, delta, llmAnalysis);
 
   console.log('[PR Risk Analyzer] 📝 Creating analysis comment (and purging previous runs)...');
   let commentResult;

@@ -2,8 +2,9 @@
 # PR Risk Analyzer - GitHub Actions Workflow
 # ============================================================
 # Triggers on pull_request events: opened, synchronize, reopened
-# Runs a Node.js risk scoring engine and posts a structured
-# comment to the PR with risk level, score, and recommendations.
+# Runs a hybrid risk assessment combining:
+#   1. Deterministic scoring rules (deterministic)
+#   2. Qualitative AI Review (local LLM / Phi-3)
 # ============================================================
 
 name: PR Risk Analyzer
@@ -20,12 +21,16 @@ concurrency:
 jobs:
   analyze-risk:
     name: Analyze PR Risk
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     # Required permissions to read PR data and write comments
     permissions:
       pull-requests: write
       contents: read
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout repository
@@ -36,7 +41,7 @@ jobs:
         with:
           node-version: '20'
 
-      # Install only the GitHub REST client — no external AI/LLM dependencies
+      # Install dependencies for the analyzer script
       - name: Install dependencies
         run: |
           cd .github/scripts/pr-risk-analyzer
@@ -51,4 +56,7 @@ jobs:
           REPO_NAME: ${{ github.event.repository.name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # Local LLM Configuration (accessible via self-hosted runner)
+          LLM_ENDPOINT: "http://localhost:11434/v1"
+          LLM_MODEL: "phi3"
         run: npx tsx .github/scripts/pr-risk-analyzer/index.ts

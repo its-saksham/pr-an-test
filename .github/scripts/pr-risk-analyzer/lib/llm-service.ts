@@ -52,9 +52,13 @@ export async function analyzePrDiff(diff: string, config: LlmConfig): Promise<Ll
   try {
     console.log(`[PR Risk Analyzer] 🤖 Querying local LLM (${config.model}) at ${config.endpoint}...`);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+
     const response = await fetch(`${config.endpoint.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
         model: config.model,
         messages: [
@@ -65,6 +69,8 @@ export async function analyzePrDiff(diff: string, config: LlmConfig): Promise<Ll
         response_format: { type: 'json_object' }
       })
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();

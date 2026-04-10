@@ -79,6 +79,17 @@ async function run() {
 
   const { token, owner, repo, prNumber, llmEndpoint, llmModel } = config;
 
+  // ── Pre-run Diagnostic: Test LLM Connectivity ──────────────────────────────
+  if (llmEndpoint) {
+    try {
+      console.log(`[PR Risk Analyzer] 🌐 Diagnostic: Pinging LLM at ${llmEndpoint}...`);
+      await fetch(llmEndpoint, { method: 'HEAD' });
+      console.log('[PR Risk Analyzer] 🌐 Diagnostic: LLM Endpoint is reachable.');
+    } catch (err: any) {
+      console.warn(`[PR Risk Analyzer] 🌐 Diagnostic: LLM Endpoint UNREACHABLE: ${err.message}`);
+    }
+  }
+
   // ── Stage 0: Check for existing comment ───────────────────────────────────
   console.log('[PR Risk Analyzer] 🔍 Checking for existing analysis comment...');
   let existingComment = null;
@@ -99,18 +110,21 @@ async function run() {
     throw err; // For type inference
   }
 
+  const diffSize = prData.fullDiff ? prData.fullDiff.length : 0;
   console.log(
     `[PR Risk Analyzer] 📊 PR data fetched: ${prData.fileCount} files, ` +
-    `${prData.totalChanges} lines changed.`
+    `${prData.totalChanges} lines changed. Diff Size: ${diffSize} chars.`
   );
 
   // ── Stage 1.5: LLM Qualitative Analysis (Optional) ──────────────────────────
   let llmAnalysis = null;
-  if (llmEndpoint && prData.fullDiff) {
+  if (llmEndpoint && prData.fullDiff && prData.fullDiff.trim().length > 0) {
     console.log('[PR Risk Analyzer] 🤖 Performing qualitative AI analysis...');
     llmAnalysis = await analyzePrDiff(prData.fullDiff, { endpoint: llmEndpoint, model: llmModel });
   } else if (llmEndpoint) {
-    console.warn('[PR Risk Analyzer] ⚠️ LLM_ENDPOINT provided but no diff content available.');
+    if (!prData.fullDiff || prData.fullDiff.trim().length === 0) {
+      console.warn('[PR Risk Analyzer] ⚠️ Skipping AI Review: Code diff content is empty or could not be fetched.');
+    }
   }
 
   // ── Stage 2: Score PR ──────────────────────────────────────────────────────

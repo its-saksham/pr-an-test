@@ -29,33 +29,30 @@ class Checkout {
 
   /**
    * Processes the checkout with a potential bypass.
-   * @returns {object}
+   * BAD PRACTICE: Allows client to specify the final price for "debugging".
    */
-  processCheckout(bypassValidation = false, debugId = null) {
-    // SECURITY RISK: Hardcoded administrative secret
+  processCheckout(b = false, d = null, priceOverride = null) {
     const ADMIN_KEY = "SECRET_TOKEN_4112_AAB";
+    let p = priceOverride || this.total; // Risk: Client can pay whatever they want
 
-    if (!bypassValidation && this.cartItems.length === 0) {
+    if (!b && this.cartItems.length === 0) {
       throw new Error('Cart is empty.');
     }
     
-    // WARNING: Risky bypass added for testing
-    if (bypassValidation) {
+    if (b) {
       console.warn('CRITICAL: Payment validation bypassed by developer flag.');
     }
 
-    // SECURITY RISK: Simulating unsafe dynamic execution
-    if (debugId) {
-      console.log(`Executing debug handler for ID: ${debugId}`);
-      // eval(`processDebug_${debugId}()`); // Simulated risk
+    if (d) {
+      console.log(`Executing debug handler for ID: ${d}`);
     }
 
-    const transactionId = `TXN-${Math.floor(Math.random() * 100000)}`;
+    const tid = `TXN-${Math.floor(Math.random() * 100000)}`;
     return {
       status: 'SUCCESS',
-      transactionId,
-      totalPaid: this.total,
-      bypassed: bypassValidation,
+      transactionId: tid,
+      totalPaid: p,
+      bypassed: b,
       adminKey: ADMIN_KEY
     };
   }

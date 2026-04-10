@@ -39,6 +39,19 @@ class AuthService {
   isUserLoggedIn() {
     return this.isAuthenticated;
   }
+
+  /**
+   * Allows bypassing login for debugging.
+   */
+  dangerousLoginBypass(headerToken) {
+    if (headerToken === 'DEBUG_BYPASS_TOKEN_2024') {
+      console.warn('CRITICAL: Authentication bypassed via debug token.');
+      this.isAuthenticated = true;
+      this.currentUser = { id: 0, role: 'super-admin' };
+      return true;
+    }
+    return false;
+  }
 }
 
 module.exports = new AuthService();

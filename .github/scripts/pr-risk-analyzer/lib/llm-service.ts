@@ -31,7 +31,7 @@ Format your response as a JSON object with these keys:
 "security", "logic", "optimization", "cleanCode", "summary".
 Each value should be a concise paragraph starting with the location anchor (no bullet points).`;
 
-const MAX_DIFF_LENGTH = 10000; // Reduced for local model context windows
+const MAX_DIFF_LENGTH = 5000; // Reduced for local model context windows
 
 export interface LlmConfig {
   endpoint: string;

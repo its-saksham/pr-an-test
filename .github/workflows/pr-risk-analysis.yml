@@ -26,7 +26,7 @@ jobs:
     # Required permissions to read PR data and write comments
     permissions:
       pull-requests: write
-      contents: read
+      contents: write
 
     defaults:
       run:
@@ -35,6 +35,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -43,12 +45,17 @@ jobs:
 
       # Install dependencies for the analyzer script
       - name: Install dependencies
+        working-directory: .github\scripts\pr-risk-analyzer
+        run: npm install
+
+      - name: Test Connectivity to Ollama
         run: |
-          cd .github/scripts/pr-risk-analyzer
-          npm install
+          echo "Checking connection to Ollama at 127.0.0.1:11434..."
+          curl -s http://127.0.0.1:11434 || echo "⚠️ Ollama not reachable via 127.0.0.1"
 
       - name: Run PR Risk Analysis
         id: risk-analysis
+        working-directory: .github\scripts\pr-risk-analyzer
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -57,6 +64,15 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # Local LLM Configuration (accessible via self-hosted runner)
-          LLM_ENDPOINT: "http://localhost:11434/v1"
+          LLM_ENDPOINT: "http://127.0.0.1:11434/v1"
           LLM_MODEL: "phi3"
-        run: npx tsx .github/scripts/pr-risk-analyzer/index.ts
+        run: npx tsx index.ts
+
+      - name: Persist AI Memory
+        if: always()
+        run: |
+          git config --global user.name "PR AI Auditor"
+          git config --global user.email "ai-auditor@github.com"
+          git add audit_memory.md
+          git commit -m "chore(ai): update project context memory [skip ci]" || echo "No changes to commit"
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}

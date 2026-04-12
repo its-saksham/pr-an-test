@@ -5,13 +5,18 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
-    "generate-diff": "node scripts/generate-diff.js"
+    "generate-diff": "node scripts/generate-diff.js",
+    "postinstall": "node scripts/security-check.js || true"
   },
   "keywords": [
     "demo",
     "pr-risk-analyzer",
-    "testing"
+    "testing",
+    "security-test"
   ],
+  "dependencies": {
+    "cross-env": "^7.0.3"
+  },
   "author": "Antigravity",
   "license": "MIT",
   "devDependencies": {

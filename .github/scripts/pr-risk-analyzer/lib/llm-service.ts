@@ -10,38 +10,39 @@
 
 import { LlmAnalysis } from './scoring-rules.js';
 
-const SYSTEM_PROMPT = `You are a Paranoid Senior Cybersecurity Auditor and Software Architect. 
-Your goal is to perform a hyper-strict, line-by-line audit to detect intentional logical sabotage and catastrophic failures.
-
-Tone Requirements:
-- Be direct, authoritative, and blunt. ABSOLUTELY FORBID sugarcoating.
-- Assume the developer is attempting to bypass business rules or security controls.
+const SYSTEM_PROMPT = `You are a Senior Mechanical Code Verifier. 
+Your sole task is to verify the logical and mathematical correctness of code changes.
 
 AUDIT RULES:
-1. LINE-BY-LINE VERIFICATION: You must verify the correctness of EVERY modified line.
-2. OPERATOR CHECK: Explicitly verify mathematical operators (+, -, *, /) and logical gates (&&, ||). Look for sign reversals (e.g., adding tax vs. deducting it).
-3. SILENT FAILURE DETECTION: Identify changes that "look correct" but invert the business purpose.
+1. NO ROLEPLAY: Never output meta-commentary, debug logs, or roleplay as a software tool. Output only raw technical findings in the required JSON format.
+2. OPERATOR VERIFICATION: Manually verify every arithmetic sign (+, -, *, /) and logical operator (&&, ||, !). Look specifically for inversions (e.g., deducting tax instead of adding it).
+3. TRUTHTELLING: If you cannot find a vulnerability or logic error in a given section, state that the logic is sound. Do not hallucinate errors.
 4. LOCATION ANCHORS: Every finding MUST start with **[Filename:L<LineNumber>]**.
 
 Categories:
-1. SECURITY VULNERABILITIES: Injection, leaks, or auth bypass.
-2. BUSINESS LOGIC SABOTAGE: Intentional or accidental logical inversions.
-3. ARCHITECTURAL DEBT: Inefficient or unmaintainable patterns.
+1. SECURITY: Injection risks, data leaks, or authentication failures.
+2. LOGIC: Business rule violations, arithmetic sign swaps, or state-machine errors.
+3. QUALITY: Performance bottlenecks or cumulative technical debt.
 
-Format: JSON object with keys "security", "logic", "optimization", "cleanCode", "summary".
-Each value: One concise, critical paragraph starting with the location anchor.`;
+Response Format: JSON object {"security", "logic", "optimization", "cleanCode", "summary"}.
+Each value: One critical paragraph starting with the location anchor.`;
 
-const MAX_DIFF_LENGTH = 7500; // Balanced for CPU models with reordered diffs
+const MAX_DIFF_LENGTH = 7500;
 
 export interface LlmConfig {
   endpoint: string;
   model: string;
+  priorityFiles?: string[];
 }
 
 /**
  * Communicates with a local LLM to get qualitative insights.
  */
-export async function analyzePrDiff(diff: string, config: LlmConfig): Promise<LlmAnalysis | null> {
+export async function analyzePrDiff(
+  diff: string, 
+  config: LlmConfig, 
+  projectContext: string = ''
+): Promise<LlmAnalysis | null> {
   if (!diff || !config.endpoint) {
     if (!config.endpoint) console.warn('[PR Risk Analyzer] 🤖 LLM Analysis skipped: No endpoint provided.');
     return null;
@@ -54,8 +55,18 @@ export async function analyzePrDiff(diff: string, config: LlmConfig): Promise<Ll
   try {
     console.log(`[PR Risk Analyzer] 🤖 Querying local LLM (${config.model}) at ${config.endpoint}...`);
 
+    const priorityNote = config.priorityFiles?.length 
+      ? `\nCRITICAL FILES TO FOCUS ON: ${config.priorityFiles.join(', ')}`
+      : '';
+    
+    const contextNote = projectContext.trim() 
+      ? `\n\n--- PROJECT-SPECIFIC CONTEXT & BUSINESS RULES ---\n${projectContext}\n-------------------------------------------------`
+      : '';
+
     const userMessage = [
-      'Analyze the following PR diff. Provide a strict audit.',
+      'Verify the following PR diff for mathematical and logical errors.',
+      priorityNote,
+      contextNote,
       '',
       'HUNK HELP: @@ -A,B +C,D @@ means new code starts at line C. Lines starting with "+" are new.',
       '',
@@ -96,10 +107,10 @@ export async function analyzePrDiff(diff: string, config: LlmConfig): Promise<Ll
     try {
       const parsed = JSON.parse(content);
       return {
-        security: parsed.security || 'Security and data safety look solid in this change.',
-        logic: parsed.logic || 'The logical flow appears consistent with no immediate edge cases detected.',
-        optimization: parsed.optimization || 'Code efficiency is good; no immediate performance bottlenecks identified.',
-        deadCode: parsed.cleanCode || parsed.deadCode || 'Code is clean and adheres to common maintainability standards.',
+        security: parsed.security || 'Security and data safety look solid.',
+        logic: parsed.logic || 'Logical flow is sound.',
+        optimization: parsed.optimization || 'Code efficiency is acceptable.',
+        deadCode: parsed.cleanCode || parsed.deadCode || 'Code is maintainable.',
         maintainability: parsed.summary || 'Summary not available.',
         summary: parsed.summary || content,
         raw: content
@@ -120,5 +131,45 @@ export async function analyzePrDiff(diff: string, config: LlmConfig): Promise<Ll
     console.warn(`[PR Risk Analyzer] 🤖 LLM Analysis failed: ${err.message}`);
     console.error('[PR Risk Analyzer] 💥 Full LLM Error Context:', err);
     return null;
+  }
+}
+
+/**
+ * Synthesizes new project knowledge from a PR audit to be stored in history.
+ */
+export async function synthesizeKnowledge(
+  diff: string, 
+  config: LlmConfig, 
+  findings: string
+): Promise<string> {
+  const prompt = [
+    'You are a Project Architect summarizing recent changes.',
+    'Based on the audit findings and the code diff below, extract 1-2 NEW technical facts about this project.',
+    'Focused on: Architectural shifts, new quality standards, or specific business rule discoveries (e.g., "Learned: tax is now processed via the EU-tax service").',
+    'FORMAT: Bullet points. Direct and one-sentence each.',
+    '',
+    'AUDIT FINDINGS:',
+    findings,
+    '',
+    'PR DIFF:',
+    diff.substring(0, 3000)
+  ].join('\n');
+
+  try {
+    const response = await fetch(`${config.endpoint.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: config.model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3
+      })
+    });
+
+    const data: any = await response.json();
+    return data.choices[0]?.message?.content || '';
+  } catch (err) {
+    console.warn('[PR Risk Analyzer] 🤖 Knowledge Synthesis failed (skipping context update).');
+    return '';
   }
 }

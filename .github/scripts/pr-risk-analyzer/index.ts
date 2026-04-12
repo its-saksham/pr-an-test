@@ -17,8 +17,12 @@ import { scorePr } from './lib/scorer.js';
 import { formatComment } from './lib/formatter.js';
 import { postOrUpdateComment, findExistingComment } from './lib/commenter.js';
 import { parsePreviousResult, computeDelta } from './lib/delta.js';
-import { analyzePrDiff } from './lib/llm-service.js';
+import { analyzePrDiff, synthesizeKnowledge } from './lib/llm-service.js';
 import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+
+const MEMORY_FILE = 'audit_memory.md';
 
 // ─── Environment Configuration ────────────────────────────────────────────────
 const config = {
@@ -116,16 +120,48 @@ async function run() {
     `${prData.totalChanges} lines changed. Diff Size: ${diffSize} chars.`
   );
 
+  // ── Stage 1.7: Load Project Memory ──────────────────────────────
+  let projectContext = '';
+  if (fs.existsSync(MEMORY_FILE)) {
+    console.log(`[PR Risk Analyzer] 🧠 Loading project memory from ${MEMORY_FILE}...`);
+    projectContext = fs.readFileSync(MEMORY_FILE, 'utf8');
+  }
+
   // ── Stage 2: AI Qualitative Analysis ──────────────────────────
   let llmAnalysis = null;
   if (llmEndpoint && prData.fullDiff && prData.fullDiff.trim().length > 0) {
     console.log('[PR Risk Analyzer] 🤖 Performing qualitative AI analysis...');
     
     // REORDER DIFF: Put high-risk code (critical/config) at the top based on scorer tags
-    // (We still use fileDetails from Stage 1 for reordering, even without scoring)
     const prioritizedDiff = reorderDiff(prData.fullDiff || '', prData.fileDetails);
     
-    llmAnalysis = await analyzePrDiff(prioritizedDiff, { endpoint: llmEndpoint, model: llmModel });
+    // ATTENTION GUIDANCE: List critical files for the AI to focus on
+    const highPriorityFiles = prData.fileDetails
+      .filter(f => f.isCritical)
+      .map(f => f.path);
+
+    llmAnalysis = await analyzePrDiff(prioritizedDiff, { 
+      endpoint: llmEndpoint, 
+      model: llmModel,
+      priorityFiles: highPriorityFiles
+    }, projectContext);
+
+    // ── Stage 2.5: Knowledge Synthesis (Learning) ──────────────────────────
+    if (llmAnalysis) {
+      console.log('[PR Risk Analyzer] 🧠 Synthesizing new project knowledge...');
+      const newWisdom = await synthesizeKnowledge(
+        prioritizedDiff, 
+        { endpoint: llmEndpoint, model: llmModel }, 
+        llmAnalysis.summary
+      );
+
+      if (newWisdom && newWisdom.trim().length > 0) {
+        const timestamp = new Date().toISOString().split('T')[0];
+        const updatedMemory = `\n- **${timestamp}**: ${newWisdom.trim()}\n`;
+        fs.appendFileSync(MEMORY_FILE, updatedMemory);
+        console.log('[PR Risk Analyzer] ✅ Project memory updated with new insights.');
+      }
+    }
   }
 
   // ── Stage 3: Format & Post Comment ────────────────────────────────────────

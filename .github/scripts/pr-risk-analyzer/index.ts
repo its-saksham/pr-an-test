@@ -116,43 +116,22 @@ async function run() {
     `${prData.totalChanges} lines changed. Diff Size: ${diffSize} chars.`
   );
 
-  // ── Stage 1.5: LLM Qualitative Analysis (Optional) ──────────────────────────
+  // ── Stage 2: AI Qualitative Analysis ──────────────────────────
   let llmAnalysis = null;
   if (llmEndpoint && prData.fullDiff && prData.fullDiff.trim().length > 0) {
     console.log('[PR Risk Analyzer] 🤖 Performing qualitative AI analysis...');
     
-    // REORDER DIFF: Put high-risk code (critical/config) at the top so it isn't truncated
+    // REORDER DIFF: Put high-risk code (critical/config) at the top based on scorer tags
+    // (We still use fileDetails from Stage 1 for reordering, even without scoring)
     const prioritizedDiff = reorderDiff(prData.fullDiff || '', prData.fileDetails);
     
     llmAnalysis = await analyzePrDiff(prioritizedDiff, { endpoint: llmEndpoint, model: llmModel });
-  } else if (llmEndpoint) {
-    if (!prData.fullDiff || prData.fullDiff.trim().length === 0) {
-      console.warn('[PR Risk Analyzer] ⚠️ Skipping AI Review: Code diff content is empty or could not be fetched.');
-    }
   }
-
-  // ── Stage 2: Score PR ──────────────────────────────────────────────────────
-  console.log('[PR Risk Analyzer] 🧮 Running scoring engine...');
-  const result = scorePr(prData);
-
-  // ── Stage 2.5: Compute Delta ──────────────────────────────────────────────
-  let delta = null;
-  if (existingComment) {
-    const previousResult = parsePreviousResult(existingComment.body);
-    if (previousResult) {
-      console.log('[PR Risk Analyzer] 📈 Computing risk delta from previous run...');
-      delta = computeDelta(result, previousResult);
-    }
-  }
-
-  console.log(
-    `[PR Risk Analyzer] 🎯 Score: ${result.totalScore}/${result.maxScore} → ` +
-    `${result.riskEmoji} ${result.riskLevel}`
-  );
 
   // ── Stage 3: Format & Post Comment ────────────────────────────────────────
   console.log('[PR Risk Analyzer] 💬 Formatting comment...');
-  const commentBody = formatComment(result, prData, delta, llmAnalysis);
+  // Pass null for result and delta as we are removing scoring
+  const commentBody = formatComment(null as any, prData, null as any, llmAnalysis);
 
   console.log('[PR Risk Analyzer] 📝 Creating analysis comment (and purging previous runs)...');
   let commentResult;

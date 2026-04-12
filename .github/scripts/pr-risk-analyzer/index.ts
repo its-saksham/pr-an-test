@@ -135,16 +135,23 @@ async function run() {
     // REORDER DIFF: Put high-risk code (critical/config) at the top based on scorer tags
     const prioritizedDiff = reorderDiff(prData.fullDiff || '', prData.fileDetails);
     
+    console.log(`[PR Risk Analyzer] 📊 Prioritized Diff Size: ${prioritizedDiff.length} chars.`);
+    console.log(`[PR Risk Analyzer] 📊 Diff Preview: ${prioritizedDiff.substring(0, 100).replace(/\n/g, ' ')}...`);
+
     // ATTENTION GUIDANCE: List critical files for the AI to focus on
     const highPriorityFiles = prData.fileDetails
       .filter(f => f.isCritical)
       .map(f => f.path);
 
+    const startTime = Date.now();
     llmAnalysis = await analyzePrDiff(prioritizedDiff, { 
       endpoint: llmEndpoint, 
       model: llmModel,
       priorityFiles: highPriorityFiles
     }, projectContext);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    
+    console.log(`[PR Risk Analyzer] 🤖 AI Analysis completed in ${duration}s.`);
 
     // ── Stage 2.5: Knowledge Synthesis (Learning & Bootstrapping) ──────────
     if (llmAnalysis) {

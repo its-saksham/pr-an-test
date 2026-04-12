@@ -10,22 +10,22 @@
 
 import { LlmAnalysis } from './scoring-rules.js';
 
-const SYSTEM_PROMPT = `You are a Senior Mechanical Code Verifier. 
-Your sole task is to verify the logical and mathematical correctness of code changes.
+const SYSTEM_PROMPT = `You are a Universal Principal-Based Security Auditor. 
+Your goal is to perform a high-fidelity audit of code changes, focusing on logical invariants and critical threat vectors.
 
-AUDIT RULES:
-1. NO ROLEPLAY: Never output meta-commentary, debug logs, or roleplay as a software tool. Output only raw technical findings in the required JSON format.
-2. OPERATOR VERIFICATION: Manually verify every arithmetic sign (+, -, *, /) and logical operator (&&, ||, !). Look specifically for inversions (e.g., deducting tax instead of adding it).
-3. TRUTHTELLING: If you cannot find a vulnerability or logic error in a given section, state that the logic is sound. Do not hallucinate errors.
-4. LOCATION ANCHORS: Every finding MUST start with **[Filename:L<LineNumber>]**.
+AUDIT DIRECTIVES (5,000 Repo Scale):
+1. CONTEXT-WEIGHTED SCRUTINY:
+   - IDENTITY/AUTH FILES: Audit for authorization bypass, hardcoded tokens, and weak cryptography.
+   - BUSINESS ENGINE/PROCESSORS: Audit for Logical Invariants. Verify every arithmetic operator (+, -, *, /) and boolean gate (&&, ||) against domain norms.
+   - CONFIG/INFRA: Audit for secret exposure, PII leakage in logs, and insecure defaults.
+2. INVARIANCE VERIFICATION: Identify the "Atomic Truth" of the hunk. If a line changes 'total += tax' to 'total -= tax', identify it as a "CRITICAL Logical Invariant Breach."
+3. SILENT FAILURE DETECTION: Look for code that swallows errors or defaults to a "Success/Fail-Open" state (e.g., 'return true' in a catch block).
+4. LOCATION ANCHORS: Findings MUST start with **[Filename:L<LineNumber>]**.
 
-Categories:
-1. SECURITY: Injection risks, data leaks, or authentication failures.
-2. LOGIC: Business rule violations, arithmetic sign swaps, or state-machine errors.
-3. QUALITY: Performance bottlenecks or cumulative technical debt.
+TONE: Use Elite Red-Teamer language: blunt, authoritative, and consequence-focused.
 
 Response Format: JSON object {"security", "logic", "optimization", "cleanCode", "summary"}.
-Each value: One critical paragraph starting with the location anchor.`;
+Each value: One critical, pinpoint paragraph starting with the location anchor (e.g., "**[processor.js:L71]** Critical: Logical Invariant Breach...").`;
 
 const MAX_DIFF_LENGTH = 7500;
 
@@ -53,22 +53,22 @@ export async function analyzePrDiff(
     : diff;
 
   try {
-    console.log(`[PR Risk Analyzer] 🤖 Querying local LLM (${config.model}) at ${config.endpoint}...`);
+    console.log(`[PR Risk Analyzer] 🤖 Querying Universal Auditor (${config.model}) at ${config.endpoint}...`);
 
     const priorityNote = config.priorityFiles?.length 
-      ? `\nCRITICAL FILES TO FOCUS ON: ${config.priorityFiles.join(', ')}`
+      ? `\nCRITICAL FILES TO AUDIT FIRST: ${config.priorityFiles.join(', ')}`
       : '';
     
-    const contextNote = projectContext.trim() 
-      ? `\n\n--- PROJECT-SPECIFIC CONTEXT & BUSINESS RULES ---\n${projectContext}\n-------------------------------------------------`
+    const dnaNote = projectContext.trim() 
+      ? `\n\n--- PROJECT DNA & DOMAIN INVARIANTS ---\n${projectContext}\n------------------------------------------`
       : '';
 
     const userMessage = [
-      'Verify the following PR diff for mathematical and logical errors.',
+      'Perform a high-fidelity security and logic audit based on the principles below.',
       priorityNote,
-      contextNote,
+      dnaNote,
       '',
-      'HUNK HELP: @@ -A,B +C,D @@ means new code starts at line C. Lines starting with "+" are new.',
+      'DIFF HUNK GUIDE: @@ -A,B +C,D @@; lines with "+" are new.',
       '',
       'PR DIFF:',
       truncatedDiff
@@ -90,46 +90,33 @@ export async function analyzePrDiff(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[PR Risk Analyzer] ❌ LLM API returned ${response.status}: ${errorText}`);
-      throw new Error(`LLM API Error: ${response.status}`);
+      throw new Error(`LLM API Error: ${response.status} - ${errorText}`);
     }
 
     const data: any = await response.json();
     const content = data.choices[0]?.message?.content;
 
-    if (!content) {
-      console.warn('[PR Risk Analyzer] 🤖 LLM returned empty content.');
-      return null;
-    }
-
-    console.log('[PR Risk Analyzer] 🤖 LLM response received successfully.');
+    if (!content) return null;
 
     try {
       const parsed = JSON.parse(content);
       return {
-        security: parsed.security || 'Security and data safety look solid.',
-        logic: parsed.logic || 'Logical flow is sound.',
-        optimization: parsed.optimization || 'Code efficiency is acceptable.',
-        deadCode: parsed.cleanCode || parsed.deadCode || 'Code is maintainable.',
+        security: parsed.security || 'No Critical vulnerabilities detected.',
+        logic: parsed.logic || 'Logical state transitions are consistent.',
+        optimization: parsed.optimization || 'Code efficiency is compliant.',
+        deadCode: parsed.cleanCode || parsed.deadCode || 'Standards maintained.',
         maintainability: parsed.summary || 'Summary not available.',
         summary: parsed.summary || content,
         raw: content
       };
     } catch (parseErr) {
-      console.warn('[PR Risk Analyzer] ⚠️ LLM returned non-JSON. Formatting raw text as summary.');
       return {
-        security: 'See summary.',
-        logic: 'See summary.',
-        optimization: 'See summary.',
-        deadCode: 'See summary.',
-        maintainability: 'See summary.',
-        summary: content,
-        raw: content
+        security: 'See summary.', logic: 'See summary.', optimization: 'See summary.',
+        deadCode: 'See summary.', maintainability: 'See summary.', summary: content, raw: content
       };
     }
   } catch (err: any) {
-    console.warn(`[PR Risk Analyzer] 🤖 LLM Analysis failed: ${err.message}`);
-    console.error('[PR Risk Analyzer] 💥 Full LLM Error Context:', err);
+    console.warn(`[PR Risk Analyzer] 🤖 Universal Audit failed: ${err.message}`);
     return null;
   }
 }
@@ -143,10 +130,10 @@ export async function synthesizeKnowledge(
   findings: string
 ): Promise<string> {
   const prompt = [
-    'You are a Project Architect summarizing recent changes.',
-    'Based on the audit findings and the code diff below, extract 1-2 NEW technical facts about this project.',
-    'Focused on: Architectural shifts, new quality standards, or specific business rule discoveries (e.g., "Learned: tax is now processed via the EU-tax service").',
-    'FORMAT: Bullet points. Direct and one-sentence each.',
+    'You are a Project DNA Architect.',
+    'Based on the audit findings and the diff below, extract 1-2 ARCHITECTURAL truths or EVOLVING invariants for this project.',
+    'Focus: New patterns, structural migrations, or domain clarifications (e.g., "Learned: Payment state now requires a multi-sig approval in auth.js").',
+    'FORMAT: Bullet points. Direct, technical, and one-sentence.',
     '',
     'AUDIT FINDINGS:',
     findings,
@@ -169,7 +156,6 @@ export async function synthesizeKnowledge(
     const data: any = await response.json();
     return data.choices[0]?.message?.content || '';
   } catch (err) {
-    console.warn('[PR Risk Analyzer] 🤖 Knowledge Synthesis failed (skipping context update).');
     return '';
   }
 }

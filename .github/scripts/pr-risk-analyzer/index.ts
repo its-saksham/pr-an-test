@@ -12,13 +12,17 @@
 
 'use strict';
 
-import { fetchPrData } from './lib/fetcher.js';
+import { fetchPrData, reorderDiff } from './lib/fetcher.js';
 import { scorePr } from './lib/scorer.js';
 import { formatComment } from './lib/formatter.js';
 import { postOrUpdateComment, findExistingComment } from './lib/commenter.js';
 import { parsePreviousResult, computeDelta } from './lib/delta.js';
-import { analyzePrDiff } from './lib/llm-service.js';
+import { analyzePrDiff, synthesizeKnowledge } from './lib/llm-service.js';
 import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+
+const MEMORY_FILE = 'audit_memory.md';
 
 // ─── Environment Configuration ────────────────────────────────────────────────
 const config = {
@@ -116,39 +120,54 @@ async function run() {
     `${prData.totalChanges} lines changed. Diff Size: ${diffSize} chars.`
   );
 
-  // ── Stage 1.5: LLM Qualitative Analysis (Optional) ──────────────────────────
+  // ── Stage 1.7: Load Project Memory ──────────────────────────────
+  let projectContext = '';
+  if (fs.existsSync(MEMORY_FILE)) {
+    console.log(`[PR Risk Analyzer] 🧠 Loading project memory from ${MEMORY_FILE}...`);
+    projectContext = fs.readFileSync(MEMORY_FILE, 'utf8');
+  }
+
+  // ── Stage 2: AI Qualitative Analysis ──────────────────────────
   let llmAnalysis = null;
   if (llmEndpoint && prData.fullDiff && prData.fullDiff.trim().length > 0) {
     console.log('[PR Risk Analyzer] 🤖 Performing qualitative AI analysis...');
-    llmAnalysis = await analyzePrDiff(prData.fullDiff, { endpoint: llmEndpoint, model: llmModel });
-  } else if (llmEndpoint) {
-    if (!prData.fullDiff || prData.fullDiff.trim().length === 0) {
-      console.warn('[PR Risk Analyzer] ⚠️ Skipping AI Review: Code diff content is empty or could not be fetched.');
+    
+    // REORDER DIFF: Put high-risk code (critical/config) at the top based on scorer tags
+    const prioritizedDiff = reorderDiff(prData.fullDiff || '', prData.fileDetails);
+    
+    // ATTENTION GUIDANCE: List critical files for the AI to focus on
+    const highPriorityFiles = prData.fileDetails
+      .filter(f => f.isCritical)
+      .map(f => f.path);
+
+    llmAnalysis = await analyzePrDiff(prioritizedDiff, { 
+      endpoint: llmEndpoint, 
+      model: llmModel,
+      priorityFiles: highPriorityFiles
+    }, projectContext);
+
+    // ── Stage 2.5: Knowledge Synthesis (Learning) ──────────────────────────
+    if (llmAnalysis) {
+      console.log('[PR Risk Analyzer] 🧠 Synthesizing new project knowledge...');
+      const newWisdom = await synthesizeKnowledge(
+        prioritizedDiff, 
+        { endpoint: llmEndpoint, model: llmModel }, 
+        llmAnalysis.summary
+      );
+
+      if (newWisdom && newWisdom.trim().length > 0) {
+        const timestamp = new Date().toISOString().split('T')[0];
+        const updatedMemory = `\n- **${timestamp}**: ${newWisdom.trim()}\n`;
+        fs.appendFileSync(MEMORY_FILE, updatedMemory);
+        console.log('[PR Risk Analyzer] ✅ Project memory updated with new insights.');
+      }
     }
   }
-
-  // ── Stage 2: Score PR ──────────────────────────────────────────────────────
-  console.log('[PR Risk Analyzer] 🧮 Running scoring engine...');
-  const result = scorePr(prData);
-
-  // ── Stage 2.5: Compute Delta ──────────────────────────────────────────────
-  let delta = null;
-  if (existingComment) {
-    const previousResult = parsePreviousResult(existingComment.body);
-    if (previousResult) {
-      console.log('[PR Risk Analyzer] 📈 Computing risk delta from previous run...');
-      delta = computeDelta(result, previousResult);
-    }
-  }
-
-  console.log(
-    `[PR Risk Analyzer] 🎯 Score: ${result.totalScore}/${result.maxScore} → ` +
-    `${result.riskEmoji} ${result.riskLevel}`
-  );
 
   // ── Stage 3: Format & Post Comment ────────────────────────────────────────
   console.log('[PR Risk Analyzer] 💬 Formatting comment...');
-  const commentBody = formatComment(result, prData, delta, llmAnalysis);
+  // Pass null for result and delta as we are removing scoring
+  const commentBody = formatComment(null as any, prData, null as any, llmAnalysis);
 
   console.log('[PR Risk Analyzer] 📝 Creating analysis comment (and purging previous runs)...');
   let commentResult;

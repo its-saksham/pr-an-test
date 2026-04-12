@@ -37,12 +37,16 @@ export interface LlmConfig {
 
 /**
  * Communicates with a local LLM to get qualitative insights.
+ * Includes a 3-attempt retry mechanism and 60s timeout for resilience.
  */
 export async function analyzePrDiff(
   diff: string, 
   config: LlmConfig, 
   projectContext: string = ''
 ): Promise<LlmAnalysis | null> {
+  const RETRY_ATTEMPTS = 3;
+  const TIMEOUT_MS = 60000; // 60s timeout for local model inference
+
   if (!diff || !config.endpoint) {
     if (!config.endpoint) console.warn('[PR Risk Analyzer] 🤖 LLM Analysis skipped: No endpoint provided.');
     return null;
@@ -52,53 +56,52 @@ export async function analyzePrDiff(
     ? diff.substring(0, MAX_DIFF_LENGTH) + '\n\n[... Diff truncated ...]' 
     : diff;
 
-  try {
-    console.log(`[PR Risk Analyzer] 🤖 Querying Universal Auditor (${config.model}) at ${config.endpoint}...`);
-
-    const priorityNote = config.priorityFiles?.length 
-      ? `\nCRITICAL FILES TO AUDIT FIRST: ${config.priorityFiles.join(', ')}`
-      : '';
-    
-    const dnaNote = projectContext.trim() 
-      ? `\n\n--- PROJECT DNA & DOMAIN INVARIANTS ---\n${projectContext}\n------------------------------------------`
-      : '';
-
-    const userMessage = [
-      'Perform a high-fidelity security and logic audit based on the principles below.',
-      priorityNote,
-      dnaNote,
-      '',
-      'DIFF HUNK GUIDE: @@ -A,B +C,D @@; lines with "+" are new.',
-      '',
-      'PR DIFF:',
-      truncatedDiff
-    ].join('\n');
-
-    const response = await fetch(`${config.endpoint.replace(/\/$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userMessage }
-        ],
-        temperature: 0.1,
-        response_format: { type: 'json_object' }
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`LLM API Error: ${response.status} - ${errorText}`);
-    }
-
-    const data: any = await response.json();
-    const content = data.choices[0]?.message?.content;
-
-    if (!content) return null;
-
+  for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
     try {
+      console.log(`[PR Risk Analyzer] 🤖 Querying Universal Auditor (Attempt ${attempt}/${RETRY_ATTEMPTS})...`);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+      const dnaNote = projectContext.trim() 
+        ? `\n\n--- PROJECT DNA & DOMAIN INVARIANTS ---\n${projectContext}\n------------------------------------------`
+        : '';
+
+      const userMessage = [
+        'Perform a high-fidelity security and logic audit based on the principles below.',
+        dnaNote,
+        '',
+        'PR DIFF:',
+        truncatedDiff
+      ].join('\n');
+
+      const response = await fetch(`${config.endpoint.replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: config.model,
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: userMessage }
+          ],
+          temperature: 0.1,
+          response_format: { type: 'json_object' }
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`LLM API returned ${response.status}: ${errorText}`);
+      }
+
+      const data: any = await response.json();
+      const content = data.choices[0]?.message?.content;
+
+      if (!content) throw new Error('LLM returned empty content.');
+
       const parsed = JSON.parse(content);
       return {
         security: parsed.security || 'No Critical vulnerabilities detected.',
@@ -109,16 +112,31 @@ export async function analyzePrDiff(
         summary: parsed.summary || content,
         raw: content
       };
-    } catch (parseErr) {
-      return {
-        security: 'See summary.', logic: 'See summary.', optimization: 'See summary.',
-        deadCode: 'See summary.', maintainability: 'See summary.', summary: content, raw: content
-      };
+    } catch (err: any) {
+      const isLastAttempt = attempt === RETRY_ATTEMPTS;
+      const errorMsg = err.name === 'AbortError' ? 'Request Timed Out (60s)' : err.message;
+
+      console.warn(`[PR Risk Analyzer] ⚠️ Attempt ${attempt} failed: ${errorMsg}`);
+
+      if (isLastAttempt) {
+        console.error('[PR Risk Analyzer] ❌ Final attempt failed. Surfacing error to PR.');
+        return {
+          security: `⚠️ LLM Connection Failure: ${errorMsg}`,
+          logic: 'Evaluation skipped due to connection error.',
+          optimization: 'N/A',
+          deadCode: 'N/A',
+          maintainability: 'N/A',
+          summary: `### ❌ AI Evaluation Unavailable\nThe local LLM endpoint at your runner failed to respond after ${RETRY_ATTEMPTS} attempts.\n**Error:** ${errorMsg}`,
+          raw: errorMsg
+        };
+      }
+      
+      // Short delay before retry
+      await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
     }
-  } catch (err: any) {
-    console.warn(`[PR Risk Analyzer] 🤖 Universal Audit failed: ${err.message}`);
-    return null;
   }
+
+  return null;
 }
 
 /**

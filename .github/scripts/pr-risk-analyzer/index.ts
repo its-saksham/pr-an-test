@@ -17,7 +17,7 @@ import { scorePr } from './lib/scorer.js';
 import { formatComment } from './lib/formatter.js';
 import { postOrUpdateComment, findExistingComment } from './lib/commenter.js';
 import { parsePreviousResult, computeDelta } from './lib/delta.js';
-import { analyzePrDiff, synthesizeKnowledge } from './lib/llm-service.js';
+import { analyzePrDiff, synthesizeKnowledge, initializeProjectDna } from './lib/llm-service.js';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -146,20 +146,40 @@ async function run() {
       priorityFiles: highPriorityFiles
     }, projectContext);
 
-    // ── Stage 2.5: Knowledge Synthesis (Learning) ──────────────────────────
+    // ── Stage 2.5: Knowledge Synthesis (Learning & Bootstrapping) ──────────
     if (llmAnalysis) {
-      console.log('[PR Risk Analyzer] 🧠 Synthesizing new project knowledge...');
-      const newWisdom = await synthesizeKnowledge(
-        prioritizedDiff, 
-        { endpoint: llmEndpoint, model: llmModel }, 
-        llmAnalysis.summary
-      );
+      console.log('[PR Risk Analyzer] 🧠 Learning Phase...');
 
-      if (newWisdom && newWisdom.trim().length > 0) {
-        const timestamp = new Date().toISOString().split('T')[0];
-        const updatedMemory = `\n- **${timestamp}**: ${newWisdom.trim()}\n`;
-        fs.appendFileSync(MEMORY_FILE, updatedMemory);
-        console.log('[PR Risk Analyzer] ✅ Project memory updated with new insights.');
+      // BOOTSTRAP CHECK: If memory is empty or very short, do a full DNA Initialization
+      // We check for < 100 chars to account for headers or boilerplate
+      const isFirstRun = projectContext.trim().length < 100;
+
+      if (isFirstRun) {
+        console.log('[PR Risk Analyzer] 🧬 Bootstrapping Initial Project DNA...');
+        const initialDna = await initializeProjectDna(
+          prioritizedDiff, 
+          { endpoint: llmEndpoint, model: llmModel }, 
+          llmAnalysis.summary
+        );
+
+        if (initialDna) {
+          fs.writeFileSync(MEMORY_FILE, initialDna);
+          console.log('[PR Risk Analyzer] ✅ Project DNA autonomously initialized.');
+        }
+      } else {
+        console.log('[PR Risk Analyzer] 🧠 Synthesizing new technical knowledge...');
+        const newWisdom = await synthesizeKnowledge(
+          prioritizedDiff, 
+          { endpoint: llmEndpoint, model: llmModel }, 
+          llmAnalysis.summary
+        );
+
+        if (newWisdom && newWisdom.trim().length > 0) {
+          const timestamp = new Date().toISOString().split('T')[0];
+          const updatedMemory = `\n- **${timestamp}**: ${newWisdom.trim()}\n`;
+          fs.appendFileSync(MEMORY_FILE, updatedMemory);
+          console.log('[PR Risk Analyzer] ✅ Project memory updated with new insights.');
+        }
       }
     }
   }

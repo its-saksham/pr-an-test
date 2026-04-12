@@ -159,3 +159,62 @@ export async function synthesizeKnowledge(
     return '';
   }
 }
+
+/**
+ * Autonomously initializes the Project DNA template from scratch.
+ * Used when the auditor detects an empty or missing memory file.
+ */
+export async function initializeProjectDna(
+  diff: string, 
+  config: LlmConfig, 
+  findings: string
+): Promise<string> {
+  const prompt = [
+    'You are a Universal System Architect.',
+    'Based on the code diff and audit findings below, generate a 🧬 PROJECT DNA & LOGICAL INVARIANTS template for this repository.',
+    '',
+    'REQUIRED SECTIONS:',
+    '1. DOMAIN IDENTITY: (e.g., Financial Ledger, Cloud Infra, Medical Dosage).',
+    '2. ATOMIC LOGICAL INVARIANTS: The "Atomic Truths" that must never be violated (e.g., "Tax must always be additive").',
+    '3. GLOBAL THREAT MODEL: What are the highest-consequence failures for this domain?',
+    '',
+    'FORMAT: High-fidelity Markdown with headers. Be authoritative and technical.',
+    '',
+    'AUDIT FINDINGS:',
+    findings,
+    '',
+    'PR DIFF:',
+    diff.substring(0, 4000)
+  ].join('\n');
+
+  try {
+    const response = await fetch(`${config.endpoint.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: config.model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3
+      })
+    });
+
+    const data: any = await response.json();
+    const content = data.choices[0]?.message?.content || '';
+    
+    return [
+      '# 🧬 Project DNA & Logical Invariants',
+      '',
+      'This file defines the **Universal Identity** and **Atomic Truths** of this repository.',
+      '',
+      content,
+      '',
+      '---',
+      `## 🧪 Repository-Specific Learning Journal`,
+      `- **${new Date().toISOString().split('T')[0]}**: Project Memory autonomously initialized via Zero-Shot Audit.`,
+      ''
+    ].join('\n');
+  } catch (err) {
+    console.warn('[PR Risk Analyzer] 🤖 DNA Initialization failed.');
+    return '';
+  }
+}

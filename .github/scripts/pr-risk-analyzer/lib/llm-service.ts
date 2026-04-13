@@ -33,12 +33,14 @@ YOUR EXACT OUTPUT MUST BE THIS JSON STRUCTURE:
 {
   "riskScore": 0,
   "riskLevel": "CRITICAL, HIGH, MEDIUM, or LOW",
-  "security": "Describe actual security flaws found in the diff and provide the filename and line number. Write 'Acceptable.' if no security flaws exist.",
-  "logic": "Describe actual logic errors or inverted validation rules found in the diff and provide the filename and line number. Write 'Acceptable.' if no logic flaws exist.",
-  "optimization": "Describe performance debt. Write 'Acceptable.' if none.",
-  "cleanCode": "Describe readability debt. Write 'Acceptable.' if none.",
+  "security": "<Description of actual security flaws found>.\\nLOCATOR: [<filename>:L<line_number>]",
+  "logic": "<Description of actual logic errors found>.\\nLOCATOR: [<filename>:L<line_number>]",
+  "optimization": "<Description of performance debt>. Write 'Acceptable.' if none.",
+  "cleanCode": "<Description of readability debt>. Write 'Acceptable.' if none.",
   "summary": "One sentence executive summary of your actual findings."
-}`;
+}
+
+MANDATORY Rule: For 'security' and 'logic', if you find an issue, you MUST end the string with the exact text '\\nLOCATOR: [filename:L#]' where filename and # are from the diff. If there are no issues, just write 'Acceptable.'`;
 
 
 const MAX_DIFF_LENGTH = 7500;

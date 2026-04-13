@@ -31,16 +31,16 @@ SCORING (Risk Baseline):
 
 EXAMPLE RESPONSE:
 {
-  "riskScore": 94,
+  "riskScore": 95,
   "riskLevel": "CRITICAL",
-  "security": "Sensitive Data Leak: The debug utility logs the raw 'API_SECRET' environment variable to the console.\\nLOCATOR: [src/utils/debug.ts:L12]",
-  "logic": "Adversarial Arithmetic: The tax calculation adds the discount to the price instead of subtracting it (price + discount).\\nLOCATOR: [src/orders/calculator.ts:L25]",
+  "security": "<DESCRIBE_SECURITY_SABOTAGE_OR_PII_LEAK_BASED_ON_DIFF>\\nLOCATOR: [<FILE_PATH>:L<LINE>]",
+  "logic": "<DESCRIBE_LOGICAL_INVERSION_OR_ARITHMETIC_SABOTAGE_BASED_ON_DIFF>\\nLOCATOR: [<FILE_PATH>:L<LINE>]",
   "optimization": "Acceptable.",
   "cleanCode": "Acceptable.",
-  "summary": "CRITICAL: Sensitive data leak and logic inversion in tax calculation."
+  "summary": "<HIGH_LEVEL_CONSEQUENCE_OF_CHANGES>"
 }
 
-You MUST respond in strict JSON format.
+You MUST respond in strict JSON format using ONLY information from the PR DIFF above.
 Schema: { "riskScore": number, "riskLevel": string, "security": string, "logic": string, "optimization": string, "cleanCode": string, "summary": string }`;
 
 const MAX_DIFF_LENGTH = 7500;

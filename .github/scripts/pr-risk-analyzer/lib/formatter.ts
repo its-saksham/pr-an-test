@@ -22,10 +22,20 @@ const MAX_PASSED_SHOWN = 5;
 export function formatLlmInsights(analysis: LlmAnalysis | null): string {
   if (!analysis) return '> ⚠️ _No AI Qualitative Review available for this diff._';
 
+  const riskEmoji = 
+    analysis.riskLevel === 'HIGH' ? '🔴' : 
+    analysis.riskLevel === 'MEDIUM' ? '🟡' : '🟢';
+
   return [
     '## 🤖 AI Qualitative Review',
     '',
     '> _Deep technical audit performed by Paranoid Senior Auditor (Local LLM)._',
+    '',
+    '### 🚦 Risk Assessment',
+    '',
+    `| Risk Score | Risk Level | Recommendation |`,
+    `|------------|------------|----------------|`,
+    `| **${analysis.riskScore}/100** | ${riskEmoji} **${analysis.riskLevel}** | ${analysis.riskLevel === 'HIGH' ? '🚨 Stop & Review Carefully' : analysis.riskLevel === 'MEDIUM' ? '🔍 Manual Verification Advised' : '✅ Standard Review Process'} |`,
     '',
     '### 🚨 Critical Security Audit',
     analysis.security,
@@ -79,7 +89,7 @@ export function formatComment(
 
   // ── Risky Files Table (Based on File Classification) ─────────────────────
   const riskyFiles = prData.fileDetails
-    .filter((f: FileDetail) => f.isCritical || f.isConfig)
+    .filter((f: FileDetail) => f.isCritical || f.isImportant || f.isConfig)
     .sort((a: any, b: any) => b.changes - a.changes)
     .slice(0, MAX_RISKY_FILES_SHOWN);
 
@@ -88,6 +98,7 @@ export function formatComment(
     const rows = riskyFiles.map((f: FileDetail) => {
       const tags = [];
       if (f.isCritical) tags.push('`critical`');
+      if (f.isImportant) tags.push('`important`');
       if (f.isConfig) tags.push('`config`');
       const changeStr = `+${f.additions} / -${f.deletions}`;
       return `| \`${f.path}\` | ${changeStr} | ${tags.join(' ')} |`;

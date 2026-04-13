@@ -120,16 +120,24 @@ export async function fetchPrData({ token, owner, repo, prNumber }: FetchParams)
     return isConfigPattern || isConfigDir;
   });
 
-  const fileDetails: FileDetail[] = files.map((f) => ({
-    path: f.filename,
-    additions: f.additions,
-    deletions: f.deletions,
-    changes: f.additions + f.deletions,
-    status: f.status,
-    isCritical: criticalPaths.includes(f.filename),
-    isConfig: configFiles.includes(f.filename),
-    isTest: isTestFile(f.filename),
-  }));
+  const fileDetails: FileDetail[] = files.map((f) => {
+    const isImportant = f.filename.toLowerCase().includes('src/');
+    const isCritical = criticalPaths.includes(f.filename);
+    const isConfig = configFiles.includes(f.filename);
+    const isTest = isTestFile(f.filename);
+
+    return {
+      path: f.filename,
+      additions: f.additions,
+      deletions: f.deletions,
+      changes: f.additions + f.deletions,
+      status: f.status,
+      isCritical,
+      isImportant,
+      isConfig,
+      isTest,
+    };
+  });
 
   return {
     totalChanges,

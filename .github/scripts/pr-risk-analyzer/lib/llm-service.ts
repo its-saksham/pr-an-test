@@ -199,9 +199,46 @@ export async function synthesizeKnowledge(
     });
 
     const data: any = await response.json();
-    return data.choices[0]?.message?.content || '';
-  } catch (err) {
-    return '';
+    const content = data.choices[0]?.message?.content;
+
+    if (!content) return null;
+
+    try {
+      const parsed = JSON.parse(content);
+
+      // Coerce any field to a plain string — LLMs sometimes return nested objects or arrays
+      const ensureString = (val: any, fallback: string): string => {
+        if (!val) return fallback;
+        if (typeof val === 'string') return val;
+        if (Array.isArray(val)) return val.map(v => (typeof v === 'string' ? v : JSON.stringify(v))).join('\n');
+        if (typeof val === 'object') return Object.values(val).map(v => String(v)).join('\n');
+        return String(val);
+      };
+
+      return {
+        security:        ensureString(parsed.security,        'No significant security concerns detected.'),
+        logic:           ensureString(parsed.logic,           'Logic appears sound.'),
+        optimization:    ensureString(parsed.optimization,    'No immediate optimizations suggested.'),
+        deadCode:        ensureString(parsed.deadCode,        'No dead code identified.'),
+        maintainability: ensureString(parsed.maintainability, 'Code is maintainable.'),
+        summary:         ensureString(parsed.summary,         'Summary not available.'),
+        raw: content
+      };
+    } catch (parseErr) {
+      console.warn('[PR Risk Analyzer] ⚠️ LLM returned non-JSON. Falling back to raw summary.');
+      return {
+        security: 'See summary.',
+        logic: 'See summary.',
+        optimization: 'See summary.',
+        deadCode: 'See summary.',
+        maintainability: 'See summary.',
+        summary: content,
+        raw: content
+      };
+    }
+  } catch (err: any) {
+    console.warn(`[PR Risk Analyzer] 🤖 LLM Analysis failed: ${err.message}`);
+    return null;
   }
 }
 

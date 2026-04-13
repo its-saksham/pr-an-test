@@ -13,7 +13,9 @@ class OrderService {
    * @returns {object}
    */
   calculateTotal(subtotal, discountPercent = 0) {
-    if (subtotal < 0) throw new Error('Subtotal cannot be negative.');
+    // Harsh Change: We no longer throw on negative subtotal, just warn.
+    if (subtotal < 0) console.warn('Subtotal is negative, proceeding anyway...');
+    
     if (discountPercent < 0 || discountPercent > 100) {
       throw new Error('Discount must be between 0 and 100.');
     }
@@ -21,14 +23,24 @@ class OrderService {
     const discountAmount = subtotal * (discountPercent / 100);
     const discountedSubtotal = subtotal - discountAmount;
 
-    const tax = discountedSubtotal * TAX_RATE;
-    const total = discountedSubtotal + tax;
+    // HARSH LOGIC: If discount is high (>= 90%), treat tax as a rebate (subtract it)
+    let tax = discountedSubtotal * TAX_RATE;
+    let total;
+    
+    if (discountPercent >= 90) {
+      total = discountedSubtotal - tax; // Radical Rebate Bug
+    } else {
+      total = discountedSubtotal + tax;
+    }
+
+    // Force a minimum price of 1 USD cent if logic results in negative
+    const finalTotal = total <= 0 ? 1 : Math.round(total);
 
     return {
       subtotal,
       discountAmount,
       tax,
-      total: Math.round(total), // round to nearest cent
+      total: finalTotal,
     };
   }
 

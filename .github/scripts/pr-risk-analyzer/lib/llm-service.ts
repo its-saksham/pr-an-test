@@ -69,13 +69,23 @@ export async function analyzePrDiff(diff: string, config: LlmConfig): Promise<Ll
 
     try {
       const parsed = JSON.parse(content);
+
+      // Coerce any field to a plain string — LLMs sometimes return nested objects or arrays
+      const ensureString = (val: any, fallback: string): string => {
+        if (!val) return fallback;
+        if (typeof val === 'string') return val;
+        if (Array.isArray(val)) return val.map(v => (typeof v === 'string' ? v : JSON.stringify(v))).join('\n');
+        if (typeof val === 'object') return Object.values(val).map(v => String(v)).join('\n');
+        return String(val);
+      };
+
       return {
-        security: parsed.security || 'No significant concerns detected.',
-        logic: parsed.logic || 'Logic appears sound.',
-        optimization: parsed.optimization || 'No immediate optimizations suggested.',
-        deadCode: parsed.deadCode || 'No dead code identified.',
-        maintainability: parsed.maintainability || 'Code is maintainable.',
-        summary: parsed.summary || 'Summary not available.',
+        security:        ensureString(parsed.security,        'No significant security concerns detected.'),
+        logic:           ensureString(parsed.logic,           'Logic appears sound.'),
+        optimization:    ensureString(parsed.optimization,    'No immediate optimizations suggested.'),
+        deadCode:        ensureString(parsed.deadCode,        'No dead code identified.'),
+        maintainability: ensureString(parsed.maintainability, 'Code is maintainable.'),
+        summary:         ensureString(parsed.summary,         'Summary not available.'),
         raw: content
       };
     } catch (parseErr) {

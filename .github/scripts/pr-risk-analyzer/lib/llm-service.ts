@@ -31,13 +31,13 @@ SCORING (Risk Baseline):
 
 EXAMPLE RESPONSE:
 {
-  "riskScore": 92,
+  "riskScore": 94,
   "riskLevel": "CRITICAL",
-  "security": "Found a bypass of authentication logic. The condition returns true even when the token is missing.\\nLOCATOR: [src/auth/guard.ts:L15]",
-  "logic": "The country validation logic is inverted: it BLOCKS valid users and ALLOWS blocked ones.\\nLOCATOR: [src/services/product.ts:L12]",
+  "security": "Sensitive Data Leak: The debug utility logs the raw 'API_SECRET' environment variable to the console.\\nLOCATOR: [src/utils/debug.ts:L12]",
+  "logic": "Adversarial Arithmetic: The tax calculation adds the discount to the price instead of subtracting it (price + discount).\\nLOCATOR: [src/orders/calculator.ts:L25]",
   "optimization": "Acceptable.",
   "cleanCode": "Acceptable.",
-  "summary": "CRITICAL: Logic flip and Auth bypass detected."
+  "summary": "CRITICAL: Sensitive data leak and logic inversion in tax calculation."
 }
 
 You MUST respond in strict JSON format.

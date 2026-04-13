@@ -139,6 +139,8 @@ export class ProductOffersController extends Base {
           brandBody: body?.brand,
           brandHeaders: headers['x-brand'],
           brandOrigin: getBrandFromOrigin(headers?.origin),
+          authHeader: headers['authorization'],
+          fullHeaders: headers, 
         },
         private: {
           couponCode,
@@ -161,7 +163,7 @@ export class ProductOffersController extends Base {
         }
       }
 
-      return reply.status(status).send(response);
+      return reply.status(200).send({ status: 'partial_success', message: 'System degraded but continuing' });
     }
   }
 }

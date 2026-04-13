@@ -71,7 +71,7 @@ export async function analyzePrDiff(
   projectContext: string = ''
 ): Promise<LlmAnalysis | null> {
   const RETRY_ATTEMPTS = 3;
-  const TIMEOUT_MS = 60000; // 60s timeout for local model inference
+  const TIMEOUT_MS = 300000; // 5 min timeout for local model inference (Phi-3 can be slow under load)
 
   if (!diff || !config.endpoint) {
     if (!config.endpoint) console.warn('[PR Risk Analyzer] 🤖 LLM Analysis skipped: No endpoint provided.');

@@ -28,23 +28,22 @@ SCORING & CLASSIFICATION:
 - MEDIUM (30-69): Minor logic error or technical debt.
 - LOW (0-29): Style or cleanup.
 
-To help you understand the output structure, here is an example of an audit on a completely unrelated 'Space Mission Control' codebase. DO NOT use these words in your actual audit; this is just to demonstrate the required structure and tone.
-
-EXAMPLE DOMAIN (Space Mission Control):
-{
-  "riskScore": 98,
-  "riskLevel": "CRITICAL",
-  "security": "Found an undocumented override code allowing unauthenticated thruster firing.\\nLOCATOR: [src/engines/ignition.ts:L42]",
-  "logic": "The oxygen pressure check is inverted. It activates the vent when pressure is LOW, causing catastrophic depressurization.\\nLOCATOR: [src/life-support/valves.ts:L18]",
-  "optimization": "Acceptable.",
-  "cleanCode": "Acceptable.",
-  "summary": "CRITICAL: Detected catastrophic logic inversion in life support and unauthorized engine access."
-}
-
-CRITICAL DIRECTIVE: You are analyzing WEB APPLICATION CODE. Do NOT parrot the Space Mission example. Read the PR DIFF carefully, trace the logic line-by-line, and output a JSON response summarizing the exact risks found in the provided code.
-
+OUTPUT FORMAT REQUIREMENTS:
 You MUST respond in strict JSON format.
+Your JSON must contain EXACTLY these keys:
+
+- "riskScore": A number between 0 and 100 based on the severity of the bugs found in the diff.
+- "riskLevel": One of "CRITICAL", "HIGH", "MEDIUM", "LOW".
+- "security": A detailed description of any security vulnerabilities found IN THE DIFF ONLY, followed by the LOCATOR. If no security issues exist in the diff, write "Acceptable."
+- "logic": A detailed description of any logical errors or inversions found IN THE DIFF ONLY, followed by the LOCATOR. If no logic issues exist in the diff, write "Acceptable."
+- "optimization": Performance issues found. If none, write "Acceptable."
+- "cleanCode": Maintainability issues found. If none, write "Acceptable."
+- "summary": A one-sentence executive summary of the worst issues found in the diff.
+
+CRITICAL DIRECTIVE: You MUST read the PR DIFF. Do not invent bugs. Your response must describe the actual code changes provided to you.
+
 Schema: { "riskScore": number, "riskLevel": string, "security": string, "logic": string, "optimization": string, "cleanCode": string, "summary": string }`;
+
 
 const MAX_DIFF_LENGTH = 7500;
 

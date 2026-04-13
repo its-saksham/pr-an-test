@@ -10,23 +10,24 @@
 
 import { LlmAnalysis } from './scoring-rules.js';
 
-const SYSTEM_PROMPT = `You are a Paranoid Senior Software Security Auditor. Your job is to perform a high-fidelity, adversarial review of code changes to identify "Atomic Truths"—bugs that stay syntactically perfect but are logically or financially bankrupt.
+const SYSTEM_PROMPT = `You are a Paranoid Senior Software Security Auditor. Your job is to perform a high-fidelity audit to identify "Atomic Truths"—bugs that stay syntactically perfect but are logically bankrupt.
 
-AUDIT RIGOR:
-1. ARITHMETIC TRACE: Manually trace every math operation. Flag sign inversions (+ vs -), off-by-one errors, and incorrect floor/ceiling logic.
-2. FAIL-SAFE ANALYSIS: Identify code that fails 'open'. Ensure error paths don't skip critical invariants or state resets.
-3. DATA INTEGRITY: Look for unit mismatches (cents vs dollars, ms vs s) and unvalidated type coercions.
-4. CONCURRENCY: Identify TOCTOU race conditions and non-atomic updates to shared state.
+AUDIT WORKFLOW:
+1. ANALYZE INTENT: First, identify exactly what the code is TRYING to do.
+2. ADVERSARIAL TRACE: Trace the arithmetic and state transitions. Look for: sign flips (+/-), integer underflow, off-by-one, and fail-open logic (e.g., catching an error but returning success).
+3. VERIFY INVARIANTS: Use the "PROJECT DNA" (if provided) to ensure project-specific rules are not breached.
 
-SCORING CRITERIA:
-Assign a 'riskScore' (0-100) and 'riskLevel' (LOW, MEDIUM, HIGH) based on the CONSEQUENCE of defects:
-- HIGH (61-100): Critical security breach (SQLi, Auth Bypass), Financial Sabotage (Sign Inversion in pricing), or Data Loss.
-- MEDIUM (21-60): Logic errors requiring manual override, partial bypasses, or significant technical debt.
-- LOW (0-20): Style violations, missing tests, or minor optimizations.
+MANDATORY OUTPUT RULES:
+- NEVER use generic placeholders like "Potential SQLi" or "Logic errors" unless you anchor them to a specific line in THIS diff.
+- EVERY technical finding MUST be followed by its own dedicated line containing a LOCATOR.
+- FORMAT: LOCATOR: [filename:L<line>]
+- EACH LOCATOR MUST BE ON ITS OWN NEW LINE.
+
+SCORING:
+Assign a 'riskScore' (0-100) and 'riskLevel' (LOW, MEDIUM, HIGH) based on the consequence of the code change.
 
 You MUST respond in strict JSON format.
-Schema: { "riskScore": number, "riskLevel": string, "security": string, "logic": string, "optimization": string, "cleanCode": string, "summary": string }
-Each field: one concise paragraph. Every mention of a file or line must include **[filename:L<line>]**. Each such anchor MUST be placed on its own new line at the end of the paragraph.`;
+Schema: { "riskScore": number, "riskLevel": string, "security": string, "logic": string, "optimization": string, "cleanCode": string, "summary": string }`;
 
 const MAX_DIFF_LENGTH = 7500;
 
@@ -110,15 +111,17 @@ export async function analyzePrDiff(
       if (!content) throw new Error('LLM returned empty content.');
 
       const parsed = JSON.parse(content);
+      
+      // Map JSON to LlmAnalysis interface
       return {
         riskScore:       parseInt(String(parsed.riskScore || 0), 10),
         riskLevel:       (parsed.riskLevel || 'LOW').toUpperCase() as any,
-        security:        ensureString(parsed.security,        'No significant security concerns detected.'),
-        logic:           ensureString(parsed.logic,           'Logic appears sound.'),
-        optimization:    ensureString(parsed.optimization,    'No immediate optimizations suggested.'),
-        deadCode:        ensureString(parsed.cleanCode || parsed.deadCode, 'No dead code identified.'),
-        maintainability: ensureString(parsed.summary,         'Code is maintainable.'),
-        summary:         ensureString(parsed.summary,         'Summary not available.'),
+        security:        ensureString(parsed.security,        'No critical security concerns detected.'),
+        logic:           ensureString(parsed.logic,           'Logic appears sound and consistent.'),
+        optimization:    ensureString(parsed.optimization,    'Performance metrics are within acceptable limits.'),
+        deadCode:        ensureString(parsed.cleanCode || parsed.deadCode, 'Code follows maintainability standards.'),
+        maintainability: ensureString(parsed.summary,         'General maintainability is acceptable.'),
+        summary:         ensureString(parsed.summary,         'Comprehensive summary not provided by Auditor.'),
         raw: content
       };
     } catch (err: any) {

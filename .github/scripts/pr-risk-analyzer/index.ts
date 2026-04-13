@@ -193,8 +193,8 @@ async function run() {
 
   // ── Stage 3: Format & Post Comment ────────────────────────────────────────
   console.log('[PR Risk Analyzer] 💬 Formatting comment...');
-  // Pass null for result and delta as we are removing scoring
-  const commentBody = formatComment(null as any, prData, null as any, llmAnalysis);
+  // No longer using deterministic scoring rules. AI is the sole source of Risk metrics.
+  const commentBody = formatComment(null, prData, null, llmAnalysis);
 
   console.log('[PR Risk Analyzer] 📝 Creating analysis comment (and purging previous runs)...');
   let commentResult;

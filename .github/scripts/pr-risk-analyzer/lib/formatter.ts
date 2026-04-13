@@ -17,245 +17,108 @@ const MAX_RISKY_FILES_SHOWN = 8;
 const MAX_PASSED_SHOWN = 5;
 
 /**
- * Renders a horizontal score bar (ASCII progress bar) representing
- * the confidence/risk level visually.
+ * Formats a LlmAnalysis and PrData into a polished AI-first GitHub Markdown comment.
  */
-export function renderScoreBar(score: number, maxScore: number, barWidth = 20): string {
-  const filled = Math.min(barWidth, Math.max(0, Math.round((score / maxScore) * barWidth)));
-  const empty = barWidth - filled;
-  return `[${'█'.repeat(filled)}${'░'.repeat(empty)}]`;
-}
-
-/**
- * Returns a Markdown badge-style label for the risk level.
- */
-function formatRiskBadge(level: string, emoji: string): string {
-  const labels: Record<string, string> = { HIGH: '🔴 HIGH', MEDIUM: '🟡 MEDIUM', LOW: '🟢 LOW' };
-  return `**${labels[level] ?? `${emoji} ${level}`}**`;
-}
-
-/**
- * Formats the list of risky files with change counts and type badges.
- */
-function formatRiskyFiles(fileDetails: FileDetail[]): string {
-  const riskyFiles = fileDetails
-    .filter((f: FileDetail) => f.isCritical || f.isConfig)
-    .sort((a, b) => b.changes - a.changes)
-    .slice(0, MAX_RISKY_FILES_SHOWN);
-
-  if (riskyFiles.length === 0) return '';
-
-  const rows = riskyFiles.map((f: FileDetail) => {
-    const tags = [];
-    if (f.isCritical) tags.push('`critical`');
-    if (f.isConfig) tags.push('`config`');
-    const changeStr = `+${f.additions} / -${f.deletions}`;
-    return `| \`${f.path}\` | ${changeStr} | ${tags.join(' ')} |`;
-  });
+export function formatLlmInsights(analysis: LlmAnalysis | null): string {
+  if (!analysis) return '> ⚠️ _No AI Qualitative Review available for this diff._';
 
   return [
+    '## 🤖 AI Qualitative Review',
     '',
-    '### 📂 Highlighted Risk Files',
+    '> _Deep technical audit performed by Paranoid Senior Auditor (Local LLM)._',
     '',
-    '| File | Changes | Tags |',
-    '|------|---------|------|',
-    ...rows,
+    '### 🚨 Critical Security Audit',
+    analysis.security,
     '',
-  ].join('\n');
-}
-
-/**
- * Formats the list of checks that PASSED (did not trigger risk).
- */
-function formatPassedChecks(passedRules: TriggeredRule[]): string {
-  if (passedRules.length === 0) return '';
-
-  const shown = passedRules.slice(0, MAX_PASSED_SHOWN);
-  const items = shown.map((r: TriggeredRule) => `- ✅ ${r.label}`).join('\n');
-
-  return [
+    '### 🧱 Architecture & Logic Flaws',
+    analysis.logic,
     '',
-    '<details>',
-    '<summary>✅ Checks that passed</summary>',
+    '### 📉 Performance & Technical Debt',
+    analysis.optimization,
     '',
-    items,
+    '### 🧹 Clean Code & Maintainability Violations',
+    analysis.deadCode,
     '',
-    '</details>',
-    '',
-  ].join('\n');
-}
-
-/**
- * Formats the qualitative LLM insights into categorized sections.
- */
-function formatLlmInsights(analysis: LlmAnalysis | null): string {
-  if (!analysis) return '';
-
-  return [
-    '',
-    '### 🤖 AI Qualitative Review',
-    '',
-    '> _Detailed analysis performed by local LLM (Phi-3)._',
-    '',
-    '| Category | Finding |',
-    '|----------|---------|',
-    `| 🔐 **Security** | ${analysis.security} |`,
-    `| 🧠 **Logic** | ${analysis.logic} |`,
-    `| ⚡ **Optimization** | ${analysis.optimization} |`,
-    `| 🗑️ **Dead Code** | ${analysis.deadCode} |`,
-    `| 🛠️ **Maintainability** | ${analysis.maintainability} |`,
-    '',
-    '#### 📝 AI Summary',
+    '### 📝 Executive Summary',
     analysis.summary,
     '',
   ].join('\n');
 }
 
 /**
- * Builds the full Markdown PR comment from scoring results and raw PR data.
+ * Builds the full Markdown PR comment from AI insights and raw PR data.
  */
 export function formatComment(
-  result: ScoringResult, 
+  _result: any, 
   prData: PrData, 
-  delta: Delta | null = null,
+  _delta: any,
   llmAnalysis: LlmAnalysis | null = null
 ): string {
-  const {
-    totalScore,
-    maxScore,
-    confidenceScore,
-    riskLevel,
-    riskEmoji,
-    recommendation,
-    triggeredRules,
-    passedRules,
-  } = result;
-
-  const scoreBar = renderScoreBar(totalScore, maxScore);
-  const badge = formatRiskBadge(riskLevel, riskEmoji);
-
   // ── Header ────────────────────────────────────────────────────────────────
   const header = [
-    '## 🚦 PR Risk Analysis',
+    '# 🚦 AI Senior Auditor Analysis',
     '',
-    '> Automated risk assessment combining **deterministic rules** and **qualitative AI review**.',
+    '> **Line-by-line verification** and **logical sabotage detection** powered by local LLM.',
     '',
-  ].join('\n');
-
-  // ── Risk Summary Card ─────────────────────────────────────────────────────
-  let trendSection = '';
-  if (delta) {
-    const trendIcon = delta.trend === 'improved' ? '🔽' : delta.trend === 'worsened' ? '🔼' : '➡️';
-    const trendText = delta.trend === 'improved' ? 'Reduced' : delta.trend === 'worsened' ? 'Increased' : 'Unchanged';
-    trendSection = `| 📈 Risk Trend | ${trendIcon} **${trendText}** (was ${delta.previousScore}) |\n`;
-  }
-
-  const summary = [
     '---',
-    '',
-    `### Risk Level: ${badge}`,
-    '',
-    `| Metric | Value |`,
-    `|--------|-------|`,
-    `| 🎯 Risk Score | **${totalScore}** / ${maxScore} |`,
-    `| 📊 Impact Meter | \`${scoreBar}\` ${confidenceScore}% |`,
-    trendSection.trim(),
-    `| 📁 Files Changed | ${prData.fileCount} |`,
-    `| 📝 Lines Changed | +${prData.totalAdditions} / -${prData.totalDeletions} (${prData.totalChanges} total) |`,
-    '',
-  ].filter(Boolean).join('\n');
-
-  // ── Improvements & New Risks ──────────────────────────────────────────────
-  let evolutionSection = '';
-  if (delta) {
-    const improvements = delta.improved.map((r: { label: string }) => `- ✅ **${r.label}** (Fixed)`).join('\n');
-    const newRisks = delta.newRisks.map((r: { label: string }) => `- ⚠️ **${r.label}** (Added)`).join('\n');
-
-    if (improvements || newRisks) {
-      evolutionSection = [
-        '### 🔄 Changes since last push',
-        '',
-        improvements ? `#### ✅ Improvements detected:\n${improvements}\n` : '',
-        newRisks ? `#### ⚠️ New risks introduced:\n${newRisks}\n` : '',
-        '',
-      ].filter(Boolean).join('\n');
-    }
-  }
+  ].join('\n');
 
   // ── AI Insights ───────────────────────────────────────────────────────────
   const aiSection = formatLlmInsights(llmAnalysis);
 
-  // ── Risk Reasons ──────────────────────────────────────────────────────────
-  let reasons = '';
-  if (triggeredRules.length > 0) {
-    const bullets = triggeredRules
-      .map((r: TriggeredRule) => {
-        const detail = r.detail ? `\n  > _${r.detail}_` : '';
-        return `- ⚡ **${r.label}** \`+${r.points} pts\`${detail}`;
-      })
-      .join('\n');
+  // ── PR Context Summary ────────────────────────────────────────────────────
+  const contextSummary = [
+    '### 📂 PR Context',
+    '',
+    `| Metric | Value |`,
+    `|--------|-------|`,
+    `| 📁 Files | ${prData.fileCount} |`,
+    `| 📝 Lines | +${prData.totalAdditions} / -${prData.totalDeletions} (${prData.totalChanges} total) |`,
+    '',
+  ].join('\n');
 
-    reasons = [
-      '### ⚠️ Why this PR is risky',
+  // ── Risky Files Table (Based on File Classification) ─────────────────────
+  const riskyFiles = prData.fileDetails
+    .filter((f: FileDetail) => f.isCritical || f.isConfig)
+    .sort((a: any, b: any) => b.changes - a.changes)
+    .slice(0, MAX_RISKY_FILES_SHOWN);
+
+  let riskyFilesSection = '';
+  if (riskyFiles.length > 0) {
+    const rows = riskyFiles.map((f: FileDetail) => {
+      const tags = [];
+      if (f.isCritical) tags.push('`critical`');
+      if (f.isConfig) tags.push('`config`');
+      const changeStr = `+${f.additions} / -${f.deletions}`;
+      return `| \`${f.path}\` | ${changeStr} | ${tags.join(' ')} |`;
+    });
+
+    riskyFilesSection = [
+      '### ⚙️ High-Impact Components Modified',
       '',
-      bullets,
-      '',
-    ].join('\n');
-  } else {
-    reasons = [
-      '### ✅ No risk factors detected',
-      '',
-      'This PR passed all risk checks. Great work keeping the change focused!',
+      '| File | Changes | Tags |',
+      '|------|---------|------|',
+      ...rows,
       '',
     ].join('\n');
   }
 
-  // ── Risky Files Table ─────────────────────────────────────────────────────
-  const riskyFilesSection = formatRiskyFiles(prData.fileDetails);
-
-  // ── Passed Checks (collapsed) ─────────────────────────────────────────────
-  const passedSection = formatPassedChecks(passedRules);
-
-  // ── Recommendation ────────────────────────────────────────────────────────
-  const recommendationSection = [
-    '---',
-    '',
-    '### 💡 Recommendation',
-    '',
-    recommendation,
-    '',
-  ].join('\n');
-
-  // ── Developer Tip ─────────────────────────────────────────────────────────
-  const tipSection = [
-    '---',
-    '',
-    '> 💡 **Tip:** Push changes to reduce risk — this analysis will automatically update.',
-    '',
-  ].join('\n');
-
   // ── Footer ────────────────────────────────────────────────────────────────
-  const dataMarker = buildDataMarker(result);
   const footer = [
     '---',
     '',
-    '<sub>🤖 Generated by <strong>PR Risk Analyzer</strong> · ',
-    'Deterministic scoring + Local AI review (Phi-3) · ',
+    '<sub>🤖 Generated by <strong>PR AI Auditor</strong> · ',
+    'Local AI Review (Phi-3) · ',
     `Analysis run: ${new Date().toUTCString()}</sub>`,
     '',
-    dataMarker,
   ].join('');
 
   return [
     header,
-    summary,
-    evolutionSection,
     aiSection,
-    reasons,
+    '---',
+    contextSummary,
     riskyFilesSection,
-    passedSection,
-    recommendationSection,
-    tipSection,
     footer,
   ].join('\n');
 }

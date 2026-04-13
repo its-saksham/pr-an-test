@@ -99,20 +99,25 @@ export async function fetchPrData({ token, owner, repo, prNumber }: FetchParams)
 
   const matchedCriticalPrefixes = new Set<string>();
   filePaths.forEach((path) => {
-    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-    if (normalizedPath.startsWith('/payment')) matchedCriticalPrefixes.add('/payment');
-    if (normalizedPath.startsWith('/auth'))    matchedCriticalPrefixes.add('/auth');
-    if (normalizedPath.startsWith('/config'))  matchedCriticalPrefixes.add('/config');
+    const lowerPath = path.toLowerCase();
+    
+    // Check for critical modules anywhere in the path (e.g., /src/payment/...)
+    if (lowerPath.includes('payment/')) matchedCriticalPrefixes.add('/payment');
+    if (lowerPath.includes('auth/'))    matchedCriticalPrefixes.add('/auth');
+    if (lowerPath.includes('config/'))  matchedCriticalPrefixes.add('/config');
   });
 
   const criticalPaths = filePaths.filter((path) => {
     const lower = path.toLowerCase();
+    // Broaden keyword matching to catch sensitive file names or directories
     return CRITICAL_PATH_KEYWORDS.some((keyword) => lower.includes(keyword));
   });
 
   const configFiles = filePaths.filter((path) => {
     const filename = path.split('/').pop() || ''; 
-    return CONFIG_FILE_PATTERNS.some((pattern) => pattern.test(filename));
+    const isConfigPattern = CONFIG_FILE_PATTERNS.some((pattern) => pattern.test(filename));
+    const isConfigDir = path.toLowerCase().includes('config/');
+    return isConfigPattern || isConfigDir;
   });
 
   const fileDetails: FileDetail[] = files.map((f) => ({
@@ -142,4 +147,45 @@ export async function fetchPrData({ token, owner, repo, prNumber }: FetchParams)
     totalDeletions: files.reduce((s, f) => s + f.deletions, 0),
     fullDiff,
   };
+}
+
+/**
+ * Reorders a unified diff string to put "High-Risk" code first based on scorer tags.
+ * This ensures the LLM sees critical logic within its context window.
+ */
+export function reorderDiff(diff: string, fileDetails: FileDetail[]): string {
+  if (!diff || !fileDetails) return diff || '';
+
+  const chunks = diff.split(/^diff --git /m);
+  const header = chunks.shift() || ''; 
+  
+  // Categorize chunks
+  const priorityChunks: string[] = [];
+  const secondaryChunks: string[] = [];
+  const infraChunks: string[] = [];
+
+  chunks.forEach(chunk => {
+    const fullChunk = 'diff --git ' + chunk;
+    
+    // Find matching file detail for this chunk
+    const fileLine = chunk.split('\n')[0]; // first line is "a/path b/path"
+    const match = fileLine.match(/ b\/(.+)$/);
+    const fileName = match ? match[1].trim() : '';
+
+    const detail = fileDetails.find(d => d.path === fileName);
+    
+    if (detail) {
+      if (detail.isCritical) {
+        priorityChunks.push(fullChunk);
+      } else if (detail.isConfig) {
+        secondaryChunks.push(fullChunk);
+      } else {
+        infraChunks.push(fullChunk);
+      }
+    } else {
+      infraChunks.push(fullChunk);
+    }
+  });
+
+  return [header, ...priorityChunks, ...secondaryChunks, ...infraChunks].join('').trim();
 }

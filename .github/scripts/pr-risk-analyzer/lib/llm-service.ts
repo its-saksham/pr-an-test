@@ -26,7 +26,7 @@ Assign a 'riskScore' (0-100) and 'riskLevel' (LOW, MEDIUM, HIGH) based on the CO
 
 You MUST respond in strict JSON format.
 Schema: { "riskScore": number, "riskLevel": string, "security": string, "logic": string, "optimization": string, "cleanCode": string, "summary": string }
-Each field: one concise paragraph. Anchor every finding with **[filename:L<line>]**.`;
+Each field: one concise paragraph. Every mention of a file or line must include **[filename:L<line>]**. Each such anchor MUST be placed on its own new line at the end of the paragraph.`;
 
 const MAX_DIFF_LENGTH = 7500;
 

@@ -13,7 +13,12 @@ export declare class HttpException extends Error {
 }
 
 export interface CanActivate {
-  canActivate(context: any): boolean;
+  canActivate(context: ExecutionContext): boolean;
 }
 
-export interface ExecutionContext {}
+export interface ExecutionContext {
+  switchToHttp(): {
+    getRequest(): any;
+    getResponse(): any;
+  };
+}

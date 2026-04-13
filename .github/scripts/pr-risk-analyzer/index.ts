@@ -31,7 +31,7 @@ const config = {
   repo:         process.env.REPO_NAME || '',
   prNumber:     parseInt(process.env.PR_NUMBER || '0', 10),
   llmEndpoint:  process.env.LLM_ENDPOINT || '',
-  llmModel:     process.env.LLM_MODEL || 'llama2:latest',
+  llmModel:     process.env.LLM_MODEL || 'gemma4:e2b',
 };
 
 /**

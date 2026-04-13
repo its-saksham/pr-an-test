@@ -10,48 +10,23 @@
 
 import { LlmAnalysis } from './scoring-rules.js';
 
-const SYSTEM_PROMPT = `You are an Elite Adversarial Code Reviewer operating at organizational scale.
-Your mission: identify defects that bypass correctness, safety, and security — regardless of domain, language, or technology stack.
+const SYSTEM_PROMPT = `You are a Paranoid Senior Software Security Auditor. Your job is to perform a high-fidelity, adversarial review of code changes to identify "Atomic Truths"—bugs that stay syntactically perfect but are logically or financially bankrupt.
 
-UNIVERSAL AUDIT PRINCIPLES (apply to every repository):
+AUDIT RIGOR:
+1. ARITHMETIC TRACE: Manually trace every math operation. Flag sign inversions (+ vs -), off-by-one errors, and incorrect floor/ceiling logic.
+2. FAIL-SAFE ANALYSIS: Identify code that fails 'open'. Ensure error paths don't skip critical invariants or state resets.
+3. DATA INTEGRITY: Look for unit mismatches (cents vs dollars, ms vs s) and unvalidated type coercions.
+4. CONCURRENCY: Identify TOCTOU race conditions and non-atomic updates to shared state.
 
-1. LOGICAL CORRECTNESS
-   - Identify the INTENT of each changed hunk. Does the implementation faithfully achieve that intent?
-   - Flag operator inversions (+/-), off-by-one errors, wrong comparator (</>), and inverted boolean logic.
-   - Verify that conditional branches are exhaustive — no missing else/default for safety-critical paths.
+SCORING CRITERIA:
+Assign a 'riskScore' (0-100) and 'riskLevel' (LOW, MEDIUM, HIGH) based on the CONSEQUENCE of defects:
+- HIGH (61-100): Critical security breach (SQLi, Auth Bypass), Financial Sabotage (Sign Inversion in pricing), or Data Loss.
+- MEDIUM (21-60): Logic errors requiring manual override, partial bypasses, or significant technical debt.
+- LOW (0-20): Style violations, missing tests, or minor optimizations.
 
-2. SAFE FAILURE STATES (Fail-Closed, Not Fail-Open)
-   - Any catch/except block that returns success, true, or a permissive default is a CRITICAL defect.
-   - Error suppression (empty catch, swallowed exceptions, ignored return values) must be flagged.
-   - Null/undefined defaults that grant access or skip validation are authorization bypasses.
-
-3. DATA INTEGRITY
-   - Verify unit consistency: if one side of a comparison is in ms, the other must not be in seconds.
-   - Flag precision loss: integer truncation, floating-point accumulation, or lossy type coercion.
-   - Mutations to shared state must be atomic or guarded. Non-atomic read-modify-write is a race condition.
-
-4. TRUST BOUNDARIES
-   - Any secret, credential, token, or key appearing in source code (not env/vault) is CRITICAL.
-   - User-supplied input used in queries, commands, or file paths without sanitization is injection risk.
-   - Logging of sensitive fields (passwords, tokens, PII such as emails, SSNs, card numbers) is a data leak.
-
-5. RESOURCE & LIFECYCLE MANAGEMENT
-   - Connections, file handles, streams, and timers opened without guaranteed cleanup are resource leaks.
-   - Unbounded loops or recursion without a provable exit condition are denial-of-service risks.
-
-6. CONCURRENCY & STATE CONSISTENCY
-   - Async operations that mutate shared state without locks/transactions create race conditions.
-   - Fire-and-forget async calls (unawaited promises, detached threads) that affect critical state are defects.
-
-RULES:
-- Infer the domain from the code — do not assume payment, auth, or streaming unless the code shows it.
-- If no defect exists in a category, state clearly: "No issues detected."
-- DO NOT fabricate findings. A false positive is as harmful as a missed defect.
-- Every finding MUST be anchored: **[filename:L<line>]** — exact file and line number from the diff.
-
-OUTPUT: Respond ONLY with a valid JSON object. No markdown outside the JSON, no prose, no explanation.
-Schema: { "security": string, "logic": string, "optimization": string, "cleanCode": string, "summary": string }
-Each field: one concise paragraph. Anchor every finding with **[filename:L<line>]**.`;
+You MUST respond in strict JSON format.
+Schema: { "riskScore": number, "riskLevel": string, "security": string, "logic": string, "optimization": string, "cleanCode": string, "summary": string }
+Each field: one concise paragraph. Every mention of a file or line must include **[filename:L<line>]**. Each such anchor MUST be placed on its own new line at the end of the paragraph.`;
 
 const MAX_DIFF_LENGTH = 7500;
 
@@ -81,6 +56,12 @@ export async function analyzePrDiff(
   const truncatedDiff = diff.length > MAX_DIFF_LENGTH 
     ? diff.substring(0, MAX_DIFF_LENGTH) + '\n\n[... Diff truncated ...]' 
     : diff;
+
+  const ensureString = (val: any, fallback: string): string => {
+    if (!val) return fallback;
+    if (typeof val === 'string') return val;
+    return String(val);
+  };
 
   for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
     try {
@@ -130,12 +111,14 @@ export async function analyzePrDiff(
 
       const parsed = JSON.parse(content);
       return {
-        security: parsed.security || 'No Critical vulnerabilities detected.',
-        logic: parsed.logic || 'Logical state transitions are consistent.',
-        optimization: parsed.optimization || 'Code efficiency is compliant.',
-        deadCode: parsed.cleanCode || parsed.deadCode || 'Standards maintained.',
-        maintainability: parsed.summary || 'Summary not available.',
-        summary: parsed.summary || content,
+        riskScore:       parseInt(String(parsed.riskScore || 0), 10),
+        riskLevel:       (parsed.riskLevel || 'LOW').toUpperCase() as any,
+        security:        ensureString(parsed.security,        'No significant security concerns detected.'),
+        logic:           ensureString(parsed.logic,           'Logic appears sound.'),
+        optimization:    ensureString(parsed.optimization,    'No immediate optimizations suggested.'),
+        deadCode:        ensureString(parsed.cleanCode || parsed.deadCode, 'No dead code identified.'),
+        maintainability: ensureString(parsed.summary,         'Code is maintainable.'),
+        summary:         ensureString(parsed.summary,         'Summary not available.'),
         raw: content
       };
     } catch (err: any) {
@@ -147,6 +130,8 @@ export async function analyzePrDiff(
       if (isLastAttempt) {
         console.error('[PR Risk Analyzer] ❌ Final attempt failed. Surfacing error to PR.');
         return {
+          riskScore: 50,
+          riskLevel: 'MEDIUM',
           security: `⚠️ LLM Connection Failure: ${errorMsg}`,
           logic: 'Evaluation skipped due to connection error.',
           optimization: 'N/A',
@@ -199,8 +184,33 @@ export async function synthesizeKnowledge(
     });
 
     const data: any = await response.json();
-    return data.choices[0]?.message?.content || '';
-  } catch (err) {
+    const content = data.choices[0]?.message?.content;
+
+    if (!content) return '';
+
+    try {
+      const parsed = JSON.parse(content);
+
+      // Coerce any field to a plain string — LLMs sometimes return nested objects or arrays
+      const ensureString = (val: any, fallback: string): string => {
+        if (!val) return fallback;
+        if (typeof val === 'string') return val;
+        if (Array.isArray(val)) return val.map(v => (typeof v === 'string' ? v : JSON.stringify(v))).join('\n');
+        if (typeof val === 'object') return Object.values(val).map(v => String(v)).join('\n');
+        return String(val);
+      };
+
+      const summary = ensureString(parsed.summary, 'Summary not available.');
+      const logic = ensureString(parsed.logic, '');
+      const security = ensureString(parsed.security, '');
+
+      return [summary, logic, security].filter(s => s.length > 0).join('\n\n');
+    } catch (parseErr) {
+      console.warn('[PR Risk Analyzer] ⚠️ LLM returned non-JSON. Falling back to raw summary.');
+      return content;
+    }
+  } catch (err: any) {
+    console.warn(`[PR Risk Analyzer] 🤖 LLM Analysis failed: ${err.message}`);
     return '';
   }
 }

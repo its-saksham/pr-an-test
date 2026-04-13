@@ -199,8 +199,33 @@ export async function synthesizeKnowledge(
     });
 
     const data: any = await response.json();
-    return data.choices[0]?.message?.content || '';
-  } catch (err) {
+    const content = data.choices[0]?.message?.content;
+
+    if (!content) return '';
+
+    try {
+      const parsed = JSON.parse(content);
+
+      // Coerce any field to a plain string — LLMs sometimes return nested objects or arrays
+      const ensureString = (val: any, fallback: string): string => {
+        if (!val) return fallback;
+        if (typeof val === 'string') return val;
+        if (Array.isArray(val)) return val.map(v => (typeof v === 'string' ? v : JSON.stringify(v))).join('\n');
+        if (typeof val === 'object') return Object.values(val).map(v => String(v)).join('\n');
+        return String(val);
+      };
+
+      const summary = ensureString(parsed.summary, 'Summary not available.');
+      const logic = ensureString(parsed.logic, '');
+      const security = ensureString(parsed.security, '');
+
+      return [summary, logic, security].filter(s => s.length > 0).join('\n\n');
+    } catch (parseErr) {
+      console.warn('[PR Risk Analyzer] ⚠️ LLM returned non-JSON. Falling back to raw summary.');
+      return content;
+    }
+  } catch (err: any) {
+    console.warn(`[PR Risk Analyzer] 🤖 LLM Analysis failed: ${err.message}`);
     return '';
   }
 }

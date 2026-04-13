@@ -23,7 +23,8 @@ export function formatLlmInsights(analysis: LlmAnalysis | null): string {
   if (!analysis) return '> ⚠️ _No AI Qualitative Review available for this diff._';
 
   const riskEmoji = 
-    analysis.riskLevel === 'HIGH' ? '🔴' : 
+    analysis.riskLevel === 'CRITICAL' ? '🔴' :
+    analysis.riskLevel === 'HIGH' ? '🟠' : 
     analysis.riskLevel === 'MEDIUM' ? '🟡' : '🟢';
 
   return [
@@ -35,7 +36,7 @@ export function formatLlmInsights(analysis: LlmAnalysis | null): string {
     '',
     `| Risk Score | Risk Level | Recommendation |`,
     `|------------|------------|----------------|`,
-    `| **${analysis.riskScore}/100** | ${riskEmoji} **${analysis.riskLevel}** | ${analysis.riskLevel === 'HIGH' ? '🚨 Stop & Review Carefully' : analysis.riskLevel === 'MEDIUM' ? '🔍 Manual Verification Advised' : '✅ Standard Review Process'} |`,
+    `| **${analysis.riskScore}/100** | ${riskEmoji} **${analysis.riskLevel}** | ${analysis.riskLevel === 'CRITICAL' ? '🛑 **STOP: BLOCK MERGE**' : analysis.riskLevel === 'HIGH' ? '🚨 Stop & Review Carefully' : analysis.riskLevel === 'MEDIUM' ? '🔍 Manual Verification Advised' : '✅ Standard Review Process'} |`,
     '',
     '### 🚨 Critical Security Audit',
     analysis.security,

@@ -21,16 +21,22 @@ MANDATORY OUTPUT RULES:
 - EVERY technical finding MUST be accompanied by a LOCATOR.
 - FORMAT: LOCATOR: [filename:L<line>]
 - EACH LOCATOR MUST BE ON ITS OWN NEW LINE.
+SCORING:
+Assign a 'riskScore' (0-100) and 'riskLevel' (LOW, MEDIUM, HIGH, CRITICAL) based on the consequence of the code change:
+- CRITICAL (90-100): Catastrophic logic/security defect.
+- HIGH (70-89): Significant defect.
+- MEDIUM (30-69): Minor defect or debt.
+- LOW (0-29): Cleanup or style.
 
 EXAMPLE RESPONSE:
 {
-  "riskScore": 85,
-  "riskLevel": "HIGH",
+  "riskScore": 95,
+  "riskLevel": "CRITICAL",
   "security": "Found a potential session hijacking risk due to weak cookie attributes.\\nLOCATOR: [src/auth/session.js:L42]",
   "logic": "The arithmetic logic in calculateTotal is inverted, causing a rebate instead of a tax charge.\\nLOCATOR: [src/orders/service.js:L15]",
   "optimization": "Acceptable.",
   "cleanCode": "Acceptable.",
-  "summary": "Critical logic inversion detected in Order Service."
+  "summary": "CRITICAL logic inversion detected in Order Service."
 }
 
 You MUST respond in strict JSON format.

@@ -31,7 +31,7 @@ export interface PrData {
 
 export interface LlmAnalysis {
   riskScore: number;     // 0-100
-  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   security: string;
   logic: string;
   optimization: string;

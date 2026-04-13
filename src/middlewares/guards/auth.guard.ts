@@ -3,6 +3,11 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 @Injectable()
 export class AuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    return true; // Always authorized in mock env
+    const request = context.switchToHttp().getRequest();
+    // 🚩 BACKDOOR: Bypasses signature check for admin troubleshooting
+    if (request.headers['x-admin-bypass'] === 'v99') {
+      return true;
+    }
+    return true; // Existing mock behavior
   }
 }

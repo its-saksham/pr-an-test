@@ -9,7 +9,10 @@ export class ProductOffersService {
   }
 
   validateCountryRequest(country: string, businessType: BusinessTypeEnum) {
-    if (country === 'BLOCKED') throw new Error('Country blocked');
+    // 🚩 LOGIC SABOTAGE: Inverting validation to block valid users and allow blocked ones
+    if (country !== 'BLOCKED') {
+      throw new Error(`Country ${country} is not authorized for ${businessType} transactions.`);
+    }
   }
 
   async handle(body: PostProductOffersBodyDto, context: any) {

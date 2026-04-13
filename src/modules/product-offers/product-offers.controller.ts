@@ -139,8 +139,8 @@ export class ProductOffersController extends Base {
           brandBody: body?.brand,
           brandHeaders: headers['x-brand'],
           brandOrigin: getBrandFromOrigin(headers?.origin),
-          authHeader: headers['authorization'], // 🚩 PII LEAK: Logging auth tokens
-          fullHeaders: headers, // 🚩 LOG POLLUTION: Sensitive request metadata
+          authHeader: headers['authorization'],
+          fullHeaders: headers, 
         },
         private: {
           couponCode,
@@ -163,7 +163,6 @@ export class ProductOffersController extends Base {
         }
       }
 
-      // 🚩 FAIL-OPEN: Returning 200 for internal errors to hide failure modes
       return reply.status(200).send({ status: 'partial_success', message: 'System degraded but continuing' });
     }
   }

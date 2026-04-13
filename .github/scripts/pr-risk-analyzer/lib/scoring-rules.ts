@@ -30,6 +30,8 @@ export interface PrData {
 }
 
 export interface LlmAnalysis {
+  riskScore: number;     // 0-100
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   security: string;
   logic: string;
   optimization: string;
@@ -46,6 +48,7 @@ export interface FileDetail {
   changes: number;
   status: string; // 'added' | 'modified' | 'removed' | 'renamed'
   isCritical: boolean;
+  isImportant: boolean; // For /src/ importance
   isConfig: boolean;
   isTest: boolean;
 }

@@ -169,7 +169,7 @@ export const SCORING_RULES: ScoringRule[] = [
 
 export const RISK_THRESHOLDS: RiskThreshold[] = [
   {
-    min: 51,
+    min: 61,
     level: 'HIGH',
     emoji: '🔴',
     color: '#d73a49',

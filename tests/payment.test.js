@@ -1,5 +1,7 @@
 const checkout = require('../src/payment/checkout');
 
+// Updated for scoring test
+
 describe('Checkout Module Tests', () => {
     beforeEach(() => {
         checkout.clearCart();

@@ -35,8 +35,7 @@ export interface LlmAnalysis {
   security: string;
   logic: string;
   optimization: string;
-  deadCode: string;
-  maintainability: string;
+  cleanCode: string;
   summary: string;
   raw?: string;
 }

@@ -133,8 +133,7 @@ export async function analyzePrDiff(
         security:        ensureString(parsed.security,        'No critical security concerns detected.'),
         logic:           ensureString(parsed.logic,           'Logic appears sound and consistent.'),
         optimization:    ensureString(parsed.optimization,    'Performance metrics are within acceptable limits.'),
-        deadCode:        ensureString(parsed.cleanCode || parsed.deadCode, 'Code follows maintainability standards.'),
-        maintainability: ensureString(parsed.summary,         'General maintainability is acceptable.'),
+        cleanCode:       ensureString(parsed.cleanCode || parsed.deadCode, 'Code follows maintainability standards.'),
         summary:         ensureString(parsed.summary,         'Comprehensive summary not provided by Auditor.'),
         raw: content
       };
@@ -152,8 +151,7 @@ export async function analyzePrDiff(
           security: `⚠️ LLM Connection Failure: ${errorMsg}`,
           logic: 'Evaluation skipped due to connection error.',
           optimization: 'N/A',
-          deadCode: 'N/A',
-          maintainability: 'N/A',
+          cleanCode: 'N/A',
           summary: `### ❌ AI Evaluation Unavailable\nThe local LLM endpoint at your runner failed to respond after ${RETRY_ATTEMPTS} attempts.\n**Error:** ${errorMsg}`,
           raw: errorMsg
         };

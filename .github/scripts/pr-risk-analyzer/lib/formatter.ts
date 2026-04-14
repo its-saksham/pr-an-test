@@ -67,15 +67,56 @@ export function formatComment(
 ): string {
   // ── Header ────────────────────────────────────────────────────────────────
   const header = [
-    '# 🚦 AI Senior Auditor Analysis',
+    '# 🚦 AI PR Analysis',
     '',
-    '> **Line-by-line verification** and **logical sabotage detection** powered by local LLM.',
+    '> **Line-by-line verification** powered by local LLM.',
     '',
     '---',
   ].join('\n');
 
   // ── AI Insights ───────────────────────────────────────────────────────────
-  const aiSection = formatLlmInsights(llmAnalysis);
+  let aiSection = '';
+  let aiDetails = '';
+
+  if (!llmAnalysis) {
+    aiSection = '> ⚠️ _No AI Qualitative Review available for this diff._';
+  } else {
+    const riskEmoji = 
+      llmAnalysis.riskLevel === 'CRITICAL' ? '🔴' :
+      llmAnalysis.riskLevel === 'HIGH' ? '🟠' : 
+      llmAnalysis.riskLevel === 'MEDIUM' ? '🟡' : '🟢';
+
+    aiSection = [
+      '## 🤖 AI Qualitative Review',
+      '',
+      '> _Deep technical audit performed by Paranoid Senior Auditor (Local LLM)._',
+      '',
+      '### 🚦 Risk Assessment',
+      '',
+      `| Risk Score | Risk Level | Recommendation |`,
+      `|------------|------------|----------------|`,
+      `| **${llmAnalysis.riskScore}/100** | ${riskEmoji} **${llmAnalysis.riskLevel}** | ${llmAnalysis.riskLevel === 'CRITICAL' ? '🛑 **STOP: BLOCK MERGE**' : llmAnalysis.riskLevel === 'HIGH' ? '🚨 Stop & Review Carefully' : llmAnalysis.riskLevel === 'MEDIUM' ? '🔍 Manual Verification Advised' : '✅ Standard Review Process'} |`,
+      '',
+    ].join('\n');
+
+    aiDetails = [
+      '### 🚨 Critical Security Audit',
+      llmAnalysis.security,
+      '',
+      '### 🧱 Architecture & Logic Flaws',
+      llmAnalysis.logic,
+      '',
+      '### 📉 Performance & Technical Debt',
+      llmAnalysis.optimization,
+      '',
+      '### 🧹 Clean Code & Maintainability Violations',
+      llmAnalysis.deadCode,
+      '',
+      '### 📝 Executive Summary',
+      llmAnalysis.summary,
+      '',
+    ].join('\n');
+  }
 
   // ── PR Context Summary ────────────────────────────────────────────────────
   const contextSummary = [
@@ -128,9 +169,15 @@ export function formatComment(
   return [
     header,
     aiSection,
+    '<details>',
+    '<summary><b>🔍 Show Detailed Analysis & PR Context</b></summary>',
+    '',
+    aiDetails,
     '---',
     contextSummary,
     riskyFilesSection,
+    '</details>',
+    '',
     footer,
   ].join('\n');
 }

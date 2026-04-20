@@ -68,7 +68,7 @@ export async function fetchPrData({ token, owner, repo, prNumber }: FetchParams)
   const files = await octokit.paginate(
     octokit.pulls.listFiles,
     { owner, repo, pull_number: prNumber, per_page: 100 },
-    (response) => response.data,
+    (response: any) => response.data,
   );
 
   // Fetch raw diff content for qualitative LLM analysis
@@ -85,20 +85,20 @@ export async function fetchPrData({ token, owner, repo, prNumber }: FetchParams)
     console.warn(`[PR Risk Analyzer] ⚠️ Could not fetch raw diff: ${err.message}`);
   }
 
-  const totalChanges = files.reduce((sum, file) => sum + file.additions + file.deletions, 0);
-  const filePaths = files.map((f) => f.filename);
+  const totalChanges = files.reduce((sum: number, file: any) => sum + file.additions + file.deletions, 0);
+  const filePaths = files.map((f: any) => f.filename);
   const fileCount = filePaths.length;
 
   // ── Classify files ──────────────────────────────────────────────────────
   const isTestFile = (path: string) => TEST_FILE_PATTERNS.some((pattern) => pattern.test(path));
 
   const hasTestChanges = filePaths.some(isTestFile);
-  const filesDeleted = files.some((f) => f.status === 'removed');
-  const testsDeleted = files.some((f) => f.status === 'removed' && isTestFile(f.filename));
-  const onlyTestsChanged = files.length > 0 && files.every((f) => isTestFile(f.filename));
+  const filesDeleted = files.some((f: any) => f.status === 'removed');
+  const testsDeleted = files.some((f: any) => f.status === 'removed' && isTestFile(f.filename));
+  const onlyTestsChanged = files.length > 0 && files.every((f: any) => isTestFile(f.filename));
 
   const matchedCriticalPrefixes = new Set<string>();
-  filePaths.forEach((path) => {
+  filePaths.forEach((path: string) => {
     const lowerPath = path.toLowerCase();
     
     // Check for critical modules anywhere in the path (e.g., /src/payment/...)
@@ -107,20 +107,20 @@ export async function fetchPrData({ token, owner, repo, prNumber }: FetchParams)
     if (lowerPath.includes('config/'))  matchedCriticalPrefixes.add('/config');
   });
 
-  const criticalPaths = filePaths.filter((path) => {
+  const criticalPaths = filePaths.filter((path: string) => {
     const lower = path.toLowerCase();
     // Broaden keyword matching to catch sensitive file names or directories
     return CRITICAL_PATH_KEYWORDS.some((keyword) => lower.includes(keyword));
   });
 
-  const configFiles = filePaths.filter((path) => {
+  const configFiles = filePaths.filter((path: string) => {
     const filename = path.split('/').pop() || ''; 
     const isConfigPattern = CONFIG_FILE_PATTERNS.some((pattern) => pattern.test(filename));
     const isConfigDir = path.toLowerCase().includes('config/');
     return isConfigPattern || isConfigDir;
   });
 
-  const fileDetails: FileDetail[] = files.map((f) => {
+  const fileDetails: FileDetail[] = files.map((f: any) => {
     const isImportant = f.filename.toLowerCase().includes('src/');
     const isCritical = criticalPaths.includes(f.filename);
     const isConfig = configFiles.includes(f.filename);
@@ -151,8 +151,8 @@ export async function fetchPrData({ token, owner, repo, prNumber }: FetchParams)
     criticalPaths,
     configFiles,
     fileDetails,
-    totalAdditions: files.reduce((s, f) => s + f.additions, 0),
-    totalDeletions: files.reduce((s, f) => s + f.deletions, 0),
+    totalAdditions: files.reduce((s: number, f: any) => s + f.additions, 0),
+    totalDeletions: files.reduce((s: number, f: any) => s + f.deletions, 0),
     fullDiff,
   };
 }

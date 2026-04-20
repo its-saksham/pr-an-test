@@ -55,7 +55,7 @@ jobs:
 
       - name: Run PR Risk Analysis
         id: risk-analysis
-        working-directory: .github/scripts/pr-risk-analyzer
+        working-directory: .github\scripts\pr-risk-analyzer
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

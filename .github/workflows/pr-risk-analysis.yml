@@ -28,9 +28,6 @@ jobs:
       pull-requests: write
       contents: write
 
-    defaults:
-      run:
-        shell: cmd
 
     steps:
       - name: Checkout repository

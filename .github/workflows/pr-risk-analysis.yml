@@ -30,7 +30,7 @@ jobs:
 
     defaults:
       run:
-        shell: bash
+        shell: cmd
         
     steps:
       - name: Checkout repository
@@ -45,7 +45,7 @@ jobs:
 
       # Install dependencies for the analyzer script
       - name: Install dependencies
-        working-directory: .github\scripts\pr-risk-analyzer
+        working-directory: .github/scripts/pr-risk-analyzer
         run: npm install
 
       - name: Test Connectivity to Ollama
@@ -55,7 +55,7 @@ jobs:
 
       - name: Run PR Risk Analysis
         id: risk-analysis
-        working-directory: .github\scripts\pr-risk-analyzer
+        working-directory: .github/scripts/pr-risk-analyzer
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

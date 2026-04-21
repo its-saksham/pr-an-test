@@ -7,7 +7,7 @@ async function runStage1Audit() {
   
   const config = {
     endpoint: "http://127.0.0.1:11434/v1",
-    model: "phi3",
+    model: "gemma4:e2b",
     priorityFiles: ["src/video/concurrency-guard.js"]
   };
 

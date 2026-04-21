@@ -1,7 +1,7 @@
 /**
  * llm-service.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * Provides qualitative analysis of PR diffs using a local LLM (Phi-3).
+ * Provides qualitative analysis of PR diffs using a local LLM (Gemma4:e2b).
  * Connects via an OpenAI-compatible API endpoint (Ollama, LM Studio).
  * ─────────────────────────────────────────────────────────────────────────────
  */
@@ -60,7 +60,7 @@ export async function analyzePrDiff(
   projectContext: string = ''
 ): Promise<LlmAnalysis | null> {
   const RETRY_ATTEMPTS = 3;
-  const TIMEOUT_MS = 300000; // 5 min timeout for local model inference (Phi-3 can be slow under load)
+  const TIMEOUT_MS = 300000; // 5 min timeout for local model inference (Gemma4:e2b can be slow under load)
 
   if (!diff || !config.endpoint) {
     if (!config.endpoint) console.warn('[PR Risk Analyzer] 🤖 LLM Analysis skipped: No endpoint provided.');

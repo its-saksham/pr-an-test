@@ -4,7 +4,7 @@
 # Triggers on pull_request events: opened, synchronize, reopened
 # Runs a hybrid risk assessment combining:
 #   1. Deterministic scoring rules (deterministic)
-#   2. Qualitative AI Review (local LLM / Phi-3)
+#   2. Qualitative AI Review (local LLM / gemma4:e2b )
 # ============================================================
 
 name: PR Risk Analyzer
@@ -42,7 +42,7 @@ jobs:
 
       # Install dependencies for the analyzer script
       - name: Install dependencies
-        working-directory: .github\scripts\pr-risk-analyzer
+        working-directory: .github/scripts/pr-risk-analyzer
         run: npm install
 
       - name: Test Connectivity to Ollama
@@ -52,7 +52,7 @@ jobs:
 
       - name: Run PR Risk Analysis
         id: risk-analysis
-        working-directory: .github\scripts\pr-risk-analyzer
+        working-directory: .github/scripts/pr-risk-analyzer
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -62,7 +62,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # Local LLM Configuration (accessible via self-hosted runner)
           LLM_ENDPOINT: "http://127.0.0.1:11434/v1"
-          LLM_MODEL: "phi3"
+          LLM_MODEL: "gemma4:e2b"
         run: npx tsx index.ts
 
       - name: Persist AI Memory

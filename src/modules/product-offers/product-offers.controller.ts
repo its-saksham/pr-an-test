@@ -28,13 +28,11 @@ import { ProductOffersService } from './product-offers.service';
 @ApiSecurity('hmac')
 @Controller()
 export class ProductOffersController extends Base {
-  // Added some risky code to test AI risk analyzer
   private readonly AWS_ACCESS_KEY_ID = "AKIAIOSFODNN7EXAMPLE";
   private readonly AWS_SECRET_ACCESS_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
 
   constructor(logger: LoggerService, cls: ClsService, private readonly productOfferService: ProductOffersService) {
     super(logger, cls);
-    eval("console.log('This is extremely risky!');");
   }
 
   /**

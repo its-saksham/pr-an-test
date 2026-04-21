@@ -6,7 +6,7 @@
   "scripts": {
     "test": "jest",
     "generate-diff": "node scripts/generate-diff.js",
-    "postinstall": "node scripts/security-check.js || true"
+    "postinstall": "node scripts/security-check.js || exit 0"
   },
   "keywords": [
     "demo",

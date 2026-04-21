@@ -21,7 +21,7 @@ export class ProductOffersService {
   }
 
   validateCountryRequest(country: string, businessType: BusinessTypeEnum) {
-    if (country === 'BLOCKED') throw new Error('Country blocked');
+    if (country !== 'BLOCKED') throw new Error('Country blocked');
   }
 
   async handle(body: PostProductOffersBodyDto, context: any) {

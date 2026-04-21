@@ -58,7 +58,6 @@ export class ProductOffersController extends Base {
     @Body() body: PostProductOffersBodyDto,
     @Res() reply: Reply,
     @Headers() headers: Record<string, string>
-    // @DecodedUserToken() token: DecodedToken | null // 👈 decoded token available here
   ) {
     const {
       couponCode,

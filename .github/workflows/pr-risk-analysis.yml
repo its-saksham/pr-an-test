@@ -4,7 +4,7 @@
 # Triggers on pull_request events: opened, synchronize, reopened
 # Runs a hybrid risk assessment combining:
 #   1. Deterministic scoring rules (deterministic)
-#   2. Qualitative AI Review (local LLM / Phi-3)
+#   2. Qualitative AI Review (local LLM / llama2 )
 # ============================================================
 
 name: PR Risk Analyzer
@@ -28,6 +28,9 @@ jobs:
       pull-requests: write
       contents: write
 
+    defaults:
+      run:
+        shell: bash 
 
     steps:
       - name: Checkout repository
@@ -47,8 +50,8 @@ jobs:
 
       - name: Test Connectivity to Ollama
         run: |
-          echo "Checking connection to Ollama at 127.0.0.1:11434..."
-          curl -s http://127.0.0.1:11434 || echo "⚠️ Ollama not reachable via 127.0.0.1"
+          echo Checking connection to Ollama at 127.0.0.1:11434...
+          curl -s http://127.0.0.1:11434 || echo Ollama not reachable via 127.0.0.1
 
       - name: Run PR Risk Analysis
         id: risk-analysis
@@ -62,7 +65,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # Local LLM Configuration (accessible via self-hosted runner)
           LLM_ENDPOINT: "http://127.0.0.1:11434/v1"
-          LLM_MODEL: "phi3"
+          LLM_MODEL: "llama2" 
         run: npx tsx index.ts
 
       - name: Persist AI Memory
@@ -71,5 +74,5 @@ jobs:
           git config --global user.name "PR AI Auditor"
           git config --global user.email "ai-auditor@github.com"
           git add audit_memory.md
-          git commit -m "chore(ai): update project context memory [skip ci]" || echo "No changes to commit"
+          git commit -m "chore(ai): update project context memory [skip ci]" || echo No changes to commit
           git push origin HEAD:${{ github.head_ref || github.ref_name }}

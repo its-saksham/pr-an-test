@@ -8,6 +8,7 @@
 'use strict';
 
 import { Octokit } from '@octokit/rest';
+import path from 'path';
 import { PrData, FileDetail } from './scoring-rules.js';
 
 // ─── Critical Path Patterns ───────────────────────────────────────────────────
@@ -113,10 +114,10 @@ export async function fetchPrData({ token, owner, repo, prNumber }: FetchParams)
     return CRITICAL_PATH_KEYWORDS.some((keyword) => lower.includes(keyword));
   });
 
-  const configFiles = filePaths.filter((path: string) => {
-    const filename = path.split('/').pop() || ''; 
+  const configFiles = filePaths.filter((filePath: string) => {
+    const filename = path.basename(filePath); 
     const isConfigPattern = CONFIG_FILE_PATTERNS.some((pattern) => pattern.test(filename));
-    const isConfigDir = path.toLowerCase().includes('config/');
+    const isConfigDir = filePath.toLowerCase().includes('config/');
     return isConfigPattern || isConfigDir;
   });
 

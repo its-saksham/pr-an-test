@@ -63,35 +63,26 @@ export function extractInlineComments(analysis: LlmAnalysis): InlineComment[] {
 
   console.log(`[PR Risk Analyzer] 🔍 Extracting inline comments from LLM analysis...`);
 
-  // Extract from security field
-  if (analysis.securityLocator && analysis.securityLocator.trim()) {
-    const pathLineMatch = analysis.securityLocator.match(/^(.+):L(\d+)$/);
-    if (pathLineMatch) {
-      const path = pathLineMatch[1];
-      const line = parseInt(pathLineMatch[2], 10);
-      console.log(`[PR Risk Analyzer] ✅ Found security LOCATOR: ${path}:${line}`);
-      comments.push({ path, line, body: analysis.security });
-    } else {
-      console.warn(`[PR Risk Analyzer] ⚠️ Invalid security LOCATOR format: ${analysis.securityLocator}`);
+  const extractFromLocator = (locator: string | undefined, fieldName: string, body: string): void => {
+    if (!locator || !locator.trim()) {
+      console.log(`[PR Risk Analyzer] ℹ️ No ${fieldName} LOCATOR provided`);
+      return;
     }
-  } else {
-    console.log(`[PR Risk Analyzer] ℹ️ No security LOCATOR provided`);
-  }
 
-  // Extract from logic field
-  if (analysis.logicLocator && analysis.logicLocator.trim()) {
-    const pathLineMatch = analysis.logicLocator.match(/^(.+):L(\d+)$/);
+    // Match: filename:5 or filename:L5 or filename:5-9 or filename:L5-9
+    const pathLineMatch = locator.match(/^(.+):L?(\d+)(?:-\d+)?$/);
     if (pathLineMatch) {
       const path = pathLineMatch[1];
       const line = parseInt(pathLineMatch[2], 10);
-      console.log(`[PR Risk Analyzer] ✅ Found logic LOCATOR: ${path}:${line}`);
-      comments.push({ path, line, body: analysis.logic });
+      console.log(`[PR Risk Analyzer] ✅ Found ${fieldName} LOCATOR: ${path}:${line}`);
+      comments.push({ path, line, body });
     } else {
-      console.warn(`[PR Risk Analyzer] ⚠️ Invalid logic LOCATOR format: ${analysis.logicLocator}`);
+      console.warn(`[PR Risk Analyzer] ⚠️ Invalid ${fieldName} LOCATOR format: ${locator}`);
     }
-  } else {
-    console.log(`[PR Risk Analyzer] ℹ️ No logic LOCATOR provided`);
-  }
+  };
+
+  extractFromLocator(analysis.securityLocator, 'security', analysis.security);
+  extractFromLocator(analysis.logicLocator, 'logic', analysis.logic);
 
   console.log(`[PR Risk Analyzer] 📊 Extracted ${comments.length} inline comment(s)`);
   return comments;

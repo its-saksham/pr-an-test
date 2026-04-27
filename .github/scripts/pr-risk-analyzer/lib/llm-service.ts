@@ -34,13 +34,19 @@ YOUR EXACT OUTPUT MUST BE THIS JSON STRUCTURE:
   "riskScore": 0,
   "riskLevel": "CRITICAL, HIGH, MEDIUM, or LOW",
   "security": "<Description of actual security flaws found>",
-  "securityLocator": "filename:L#line_number or empty string",
+  "securityLocator": "src/file.ts:5 or empty string (line number only, no 'L' prefix)",
   "logic": "<Description of actual logic errors found>",
-  "logicLocator": "filename:L#line_number or empty string", 
+  "logicLocator": "src/file.ts:10 or empty string (for ranges, use the first line: src/file.ts:6 for lines 6-9)",
   "optimization": "<Description of performance debt>. Write 'Acceptable.' if none.",
   "cleanCode": "<Description of readability debt>. Write 'Acceptable.' if none.",
   "summary": "One sentence executive summary of your actual findings."
-}`
+}
+
+CRITICAL: securityLocator and logicLocator format examples:
+- CORRECT: "src/auth.ts:5"
+- CORRECT: "src/modules/payment.ts:42"
+- INCORRECT: "src/auth.ts:L5" (do NOT use L prefix)
+- INCORRECT: "src/auth.ts:5-9" (for ranges, use ONLY the first line)`
 
 const MAX_DIFF_LENGTH = 7500;
 

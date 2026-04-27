@@ -15,7 +15,7 @@
 import { fetchPrData, reorderDiff } from './lib/fetcher.js';
 import { scorePr } from './lib/scorer.js';
 import { formatComment } from './lib/formatter.js';
-import { postOrUpdateComment, findExistingComment } from './lib/commenter.js';
+import { postOrUpdateComment, findExistingComment, extractInlineComments, postInlineComments } from './lib/commenter.js';
 import { parsePreviousResult, computeDelta } from './lib/delta.js';
 import { analyzePrDiff, synthesizeKnowledge, initializeProjectDna } from './lib/llm-service.js';
 import { execSync } from 'child_process';
@@ -31,7 +31,7 @@ const config = {
   repo:         process.env.REPO_NAME || '',
   prNumber:     parseInt(process.env.PR_NUMBER || '0', 10),
   llmEndpoint:  process.env.LLM_ENDPOINT || '',
-  llmModel:     process.env.LLM_MODEL || 'phi3',
+  llmModel:     process.env.LLM_MODEL || 'gemma4:e2b',
 };
 
 /**
@@ -215,6 +215,33 @@ async function run() {
   console.log(
     `[PR Risk Analyzer] ✅ Comment ${commentResult.action} successfully: ${commentResult.commentUrl}`
   );
+
+  // ── Post Inline Comments ──────────────────────────────────────────────────
+  if (llmAnalysis && prData.headSha) {
+    console.log(`[PR Risk Analyzer] 🔍 LLM Analysis - Security: ${llmAnalysis.security.substring(0, 100)}...`);
+    console.log(`[PR Risk Analyzer] 🔍 LLM Analysis - Logic: ${llmAnalysis.logic.substring(0, 100)}...`);
+    console.log(`[PR Risk Analyzer] 🔍 Head SHA: ${prData.headSha}`);
+    const inlineComments = extractInlineComments(llmAnalysis.security, llmAnalysis.logic);
+    if (inlineComments.length > 0) {
+      console.log(`[PR Risk Analyzer] 💬 Posting ${inlineComments.length} inline comment(s)...`);
+      await postInlineComments({
+        token,
+        owner,
+        repo,
+        prNumber,
+        commitId: prData.headSha,
+        comments: inlineComments,
+        diff: prData.fullDiff || '',
+      });
+      console.log(`[PR Risk Analyzer] 📊 Diff length: ${(prData.fullDiff || '').length} characters`);
+      console.log('[PR Risk Analyzer] ✅ Inline comments posted.');
+    } else {
+      console.log('[PR Risk Analyzer] ℹ️ No inline comments to post.');
+    }
+  } else {
+    console.log(`[PR Risk Analyzer] ℹ️ Skipping inline comments - LLM analysis: ${!!llmAnalysis}, Head SHA: ${!!prData.headSha}`);
+  }
+
   console.log('[PR Risk Analyzer] 🏁 Analysis complete.');
 }
 

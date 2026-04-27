@@ -29,6 +29,12 @@ export interface ExistingComment {
   body: string;
 }
 
+export interface InlineComment {
+  path: string;
+  line: number;
+  body: string;
+}
+
 /**
  * Searches for an existing risk analyzer comment on the PR.
  */
@@ -47,6 +53,136 @@ export async function findExistingComment({ token, owner, repo, prNumber }: Comm
 
   return null;
 }
+
+/**
+ * Extracts inline comments from LLM analysis fields.
+ */
+export function extractInlineComments(security: string, logic: string): InlineComment[] {
+  const comments: InlineComment[] = [];
+
+  const extractFromField = (field: string) => {
+    const locatorMatch = field.match(/LOCATOR:\s*\[([^\]]+)\]\s*$/m);
+    if (locatorMatch) {
+      const locator = locatorMatch[1];
+      const message = field.replace(/LOCATOR:\s*\[[^\]]+\]\s*$/m, '').trim();
+      const pathLineMatch = locator.match(/^(.+):L(\d+)$/);
+      if (pathLineMatch) {
+        const path = pathLineMatch[1];
+        const line = parseInt(pathLineMatch[2], 10);
+        comments.push({ path, line, body: message });
+      }
+    }
+  };
+
+  extractFromField(security);
+  extractFromField(logic);
+
+  return comments;
+}
+
+/**
+ * Posts inline comments as a PR review.
+ */
+export async function postInlineComments({
+  token,
+  owner,
+  repo,
+  prNumber,
+  commitId,
+  comments,
+  diff,
+}: {
+  token: string;
+  owner: string;
+  repo: string;
+  prNumber: number;
+  commitId: string;
+  comments: InlineComment[];
+  diff: string;
+}): Promise<void> {
+  if (comments.length === 0) return;
+
+  const octokit = new Octokit({ auth: token });
+
+  // Find diff positions for each comment
+  const reviewComments = [];
+  for (const comment of comments) {
+    const position = findDiffPosition(diff, comment.path, comment.line);
+    if (position !== null) {
+      reviewComments.push({
+        path: comment.path,
+        position,
+        body: comment.body,
+      });
+    }
+  }
+
+  if (reviewComments.length === 0) return;
+
+  try {
+    await octokit.pulls.createReview({
+      owner,
+      repo,
+      pull_number: prNumber,
+      commit_id: commitId,
+      event: 'COMMENT',
+      body: '',
+      comments: reviewComments,
+    });
+  } catch (err: any) {
+    console.warn(`[PR Risk Analyzer] ⚠️ Failed to post inline comments: ${err.message}`);
+  }
+}
+
+/**
+ * Finds the diff position for a given file and line number by parsing the unified diff.
+ */
+function findDiffPosition(diff: string, path: string, line: number): number | null {
+  const lines = diff.split('\n');
+  let currentFile = '';
+  let position = 0;
+  let foundFile = false;
+
+  for (const lineContent of lines) {
+    position++;
+    if (lineContent.startsWith('diff --git')) {
+      const match = lineContent.match(/ b\/(.+)$/);
+      currentFile = match ? match[1] : '';
+      foundFile = currentFile === path;
+    } else if (foundFile && lineContent.startsWith('@@')) {
+      // Parse hunk header
+      const match = lineContent.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+      if (match) {
+        const startLine = parseInt(match[1], 10);
+        let currentLine = startLine;
+        let hunkPosition = position;
+
+        // Continue parsing the hunk
+        for (let i = position; i < lines.length; i++) {
+          const hunkLine = lines[i];
+          if (hunkLine.startsWith('diff --git') || hunkLine.startsWith('@@')) break;
+          hunkPosition++;
+          if (hunkLine.startsWith('+')) {
+            if (currentLine === line) {
+              return hunkPosition;
+            }
+            currentLine++;
+          } else if (!hunkLine.startsWith('-')) {
+            currentLine++;
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+export interface InlineComment {
+  path: string;
+  line: number;
+  body: string;
+}
+
 
 /**
  * Posts a new comment (always most recent).

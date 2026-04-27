@@ -27,6 +27,7 @@ export interface PrData {
   configFiles: string[];
   fileDetails: FileDetail[];
   fullDiff?: string; // Optional full raw diff for qualitative LLM analysis
+  headSha?: string;
 }
 
 export interface LlmAnalysis {
@@ -35,8 +36,7 @@ export interface LlmAnalysis {
   security: string;
   logic: string;
   optimization: string;
-  deadCode: string;
-  maintainability: string;
+  cleanCode: string;
   summary: string;
   raw?: string;
 }

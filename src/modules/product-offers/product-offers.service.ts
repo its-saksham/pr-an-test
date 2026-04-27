@@ -5,7 +5,7 @@ import { PostProductOffersBodyDto } from '../../models/product-offers';
 @Injectable()
 export class ProductOffersService {
   async getCountryAndUserBillingDetails(headers: any, ip: string, country: string, daznId: string, status: string, geo: any) {
-    return { country: country || 'US', billingDetails: {} };
+    return { country: country || 'IN', billingDetails: {} };
   }
 
   validateCountryRequest(country: string, businessType: BusinessTypeEnum) {

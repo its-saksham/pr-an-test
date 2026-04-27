@@ -218,6 +218,9 @@ async function run() {
 
   // ── Post Inline Comments ──────────────────────────────────────────────────
   if (llmAnalysis && prData.headSha) {
+    console.log(`[PR Risk Analyzer] 🔍 LLM Analysis - Security: ${llmAnalysis.security.substring(0, 100)}...`);
+    console.log(`[PR Risk Analyzer] 🔍 LLM Analysis - Logic: ${llmAnalysis.logic.substring(0, 100)}...`);
+    console.log(`[PR Risk Analyzer] 🔍 Head SHA: ${prData.headSha}`);
     const inlineComments = extractInlineComments(llmAnalysis.security, llmAnalysis.logic);
     if (inlineComments.length > 0) {
       console.log(`[PR Risk Analyzer] 💬 Posting ${inlineComments.length} inline comment(s)...`);
@@ -230,10 +233,13 @@ async function run() {
         comments: inlineComments,
         diff: prData.fullDiff || '',
       });
+      console.log(`[PR Risk Analyzer] 📊 Diff length: ${(prData.fullDiff || '').length} characters`);
       console.log('[PR Risk Analyzer] ✅ Inline comments posted.');
     } else {
       console.log('[PR Risk Analyzer] ℹ️ No inline comments to post.');
     }
+  } else {
+    console.log(`[PR Risk Analyzer] ℹ️ Skipping inline comments - LLM analysis: ${!!llmAnalysis}, Head SHA: ${!!prData.headSha}`);
   }
 
   console.log('[PR Risk Analyzer] 🏁 Analysis complete.');

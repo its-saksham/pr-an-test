@@ -60,7 +60,8 @@ export async function findExistingComment({ token, owner, repo, prNumber }: Comm
 export function extractInlineComments(security: string, logic: string): InlineComment[] {
   const comments: InlineComment[] = [];
 
-  const extractFromField = (field: string) => {
+  const extractFromField = (field: string, fieldName: string) => {
+    console.log(`[PR Risk Analyzer] 🔍 Checking ${fieldName} field for LOCATOR tags...`);
     const locatorMatch = field.match(/LOCATOR:\s*\[([^\]]+)\]\s*$/m);
     if (locatorMatch) {
       const locator = locatorMatch[1];
@@ -69,14 +70,20 @@ export function extractInlineComments(security: string, logic: string): InlineCo
       if (pathLineMatch) {
         const path = pathLineMatch[1];
         const line = parseInt(pathLineMatch[2], 10);
+        console.log(`[PR Risk Analyzer] ✅ Found LOCATOR: ${path}:${line}`);
         comments.push({ path, line, body: message });
+      } else {
+        console.warn(`[PR Risk Analyzer] ⚠️ Invalid LOCATOR format: ${locator}`);
       }
+    } else {
+      console.log(`[PR Risk Analyzer] ℹ️ No LOCATOR tag found in ${fieldName}`);
     }
   };
 
-  extractFromField(security);
-  extractFromField(logic);
+  extractFromField(security, 'security');
+  extractFromField(logic, 'logic');
 
+  console.log(`[PR Risk Analyzer] 📊 Extracted ${comments.length} inline comment(s)`);
   return comments;
 }
 
@@ -100,27 +107,41 @@ export async function postInlineComments({
   comments: InlineComment[];
   diff: string;
 }): Promise<void> {
-  if (comments.length === 0) return;
+  if (comments.length === 0) {
+    console.log('[PR Risk Analyzer] ℹ️ No inline comments to post.');
+    return;
+  }
+
+  console.log(`[PR Risk Analyzer] 💬 Attempting to post ${comments.length} inline comment(s)...`);
 
   const octokit = new Octokit({ auth: token });
 
   // Find diff positions for each comment
   const reviewComments = [];
   for (const comment of comments) {
+    console.log(`[PR Risk Analyzer] 🔍 Finding position for ${comment.path}:${comment.line}`);
     const position = findDiffPosition(diff, comment.path, comment.line);
+    console.log(`[PR Risk Analyzer] 📍 Position found: ${position} for ${comment.path}:${comment.line}`);
     if (position !== null) {
       reviewComments.push({
         path: comment.path,
         position,
         body: comment.body,
       });
+    } else {
+      console.warn(`[PR Risk Analyzer] ⚠️ Could not find diff position for ${comment.path}:${comment.line}`);
     }
   }
 
-  if (reviewComments.length === 0) return;
+  if (reviewComments.length === 0) {
+    console.warn('[PR Risk Analyzer] ⚠️ No valid positions found for inline comments');
+    return;
+  }
+
+  console.log(`[PR Risk Analyzer] 📝 Creating review with ${reviewComments.length} comment(s)...`);
 
   try {
-    await octokit.pulls.createReview({
+    const review = await octokit.pulls.createReview({
       owner,
       repo,
       pull_number: prNumber,
@@ -129,51 +150,66 @@ export async function postInlineComments({
       body: '',
       comments: reviewComments,
     });
+    console.log(`[PR Risk Analyzer] ✅ Review created: ${review.data.html_url}`);
   } catch (err: any) {
-    console.warn(`[PR Risk Analyzer] ⚠️ Failed to post inline comments: ${err.message}`);
+    console.error(`[PR Risk Analyzer] ❌ Failed to create review: ${err.message}`);
+    console.error('Review comments:', JSON.stringify(reviewComments, null, 2));
   }
 }
 
 /**
  * Finds the diff position for a given file and line number by parsing the unified diff.
+ * Returns the position relative to the hunk header (1-based).
  */
-function findDiffPosition(diff: string, path: string, line: number): number | null {
+function findDiffPosition(diff: string, path: string, targetLine: number): number | null {
   const lines = diff.split('\n');
   let currentFile = '';
-  let position = 0;
-  let foundFile = false;
+  let inHunk = false;
+  let hunkStartLine = 0;
+  let positionInHunk = 0;
 
-  for (const lineContent of lines) {
-    position++;
-    if (lineContent.startsWith('diff --git')) {
-      const match = lineContent.match(/ b\/(.+)$/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (line.startsWith('diff --git')) {
+      // New file
+      const match = line.match(/ b\/(.+)$/);
       currentFile = match ? match[1] : '';
-      foundFile = currentFile === path;
-    } else if (foundFile && lineContent.startsWith('@@')) {
-      // Parse hunk header
-      const match = lineContent.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+      inHunk = false;
+      positionInHunk = 0;
+    } else if (line.startsWith('@@') && currentFile === path) {
+      // New hunk for our file
+      const match = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
       if (match) {
-        const startLine = parseInt(match[1], 10);
-        let currentLine = startLine;
-        let hunkPosition = position;
+        hunkStartLine = parseInt(match[1], 10);
+        inHunk = true;
+        positionInHunk = 0; // Reset position counter for this hunk
+      }
+    } else if (inHunk && currentFile === path) {
+      positionInHunk++;
 
-        // Continue parsing the hunk
-        for (let i = position; i < lines.length; i++) {
-          const hunkLine = lines[i];
-          if (hunkLine.startsWith('diff --git') || hunkLine.startsWith('@@')) break;
-          hunkPosition++;
-          if (hunkLine.startsWith('+')) {
-            if (currentLine === line) {
-              return hunkPosition;
-            }
-            currentLine++;
-          } else if (!hunkLine.startsWith('-')) {
-            currentLine++;
-          }
+      // Check if this is the target line
+      if (line.startsWith('+')) {
+        // Added line
+        const currentLine = hunkStartLine + (positionInHunk - 1); // -1 because positionInHunk starts at 1 for the first line after @@
+        if (currentLine === targetLine) {
+          return positionInHunk;
         }
+        hunkStartLine++; // Added lines increase the line counter
+      } else if (line.startsWith('-')) {
+        // Removed line - we can't comment on removed lines
+        // But we still count the position
+      } else if (line.startsWith(' ')) {
+        // Context line
+        const currentLine = hunkStartLine + (positionInHunk - 1);
+        if (currentLine === targetLine) {
+          return positionInHunk;
+        }
+        hunkStartLine++; // Context lines increase the line counter
       }
     }
   }
+
   return null;
 }
 

@@ -220,8 +220,23 @@ async function run() {
   if (llmAnalysis && prData.headSha) {
     console.log(`[PR Risk Analyzer] 🔍 LLM Analysis - Security: ${llmAnalysis.security.substring(0, 100)}...`);
     console.log(`[PR Risk Analyzer] 🔍 LLM Analysis - Logic: ${llmAnalysis.logic.substring(0, 100)}...`);
+    console.log(`[PR Risk Analyzer] 🔍 Raw LLM Response contains LOCATOR: ${llmAnalysis.raw?.includes('LOCATOR')}`);
+    console.log(`[PR Risk Analyzer] 🔍 Raw LLM Response length: ${llmAnalysis.raw?.length}`);
+    console.log(`[PR Risk Analyzer] 🔍 Security Locator: ${llmAnalysis.securityLocator}`);
+    console.log(`[PR Risk Analyzer] 🔍 Logic Locator: ${llmAnalysis.logicLocator}`);
+    if (llmAnalysis.raw) {
+      try {
+        const parsedRaw = JSON.parse(llmAnalysis.raw);
+        console.log(`[PR Risk Analyzer] 🔍 Parsed security field: ${parsedRaw.security}`);
+        console.log(`[PR Risk Analyzer] 🔍 Parsed logic field: ${parsedRaw.logic}`);
+        console.log(`[PR Risk Analyzer] 🔍 Parsed securityLocator: ${parsedRaw.securityLocator}`);
+        console.log(`[PR Risk Analyzer] 🔍 Parsed logicLocator: ${parsedRaw.logicLocator}`);
+      } catch (e) {
+        console.log(`[PR Risk Analyzer] ⚠️ Could not parse raw response: ${e}`);
+      }
+    }
     console.log(`[PR Risk Analyzer] 🔍 Head SHA: ${prData.headSha}`);
-    const inlineComments = extractInlineComments(llmAnalysis.security, llmAnalysis.logic);
+    const inlineComments = extractInlineComments(llmAnalysis);
     if (inlineComments.length > 0) {
       console.log(`[PR Risk Analyzer] 💬 Posting ${inlineComments.length} inline comment(s)...`);
       await postInlineComments({

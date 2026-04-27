@@ -33,16 +33,14 @@ YOUR EXACT OUTPUT MUST BE THIS JSON STRUCTURE:
 {
   "riskScore": 0,
   "riskLevel": "CRITICAL, HIGH, MEDIUM, or LOW",
-  "security": "<Description of actual security flaws found>.\\nLOCATOR: [<filename>:L<line_number>]",
-  "logic": "<Description of actual logic errors found>.\\nLOCATOR: [<filename>:L<line_number>]",
+  "security": "<Description of actual security flaws found>",
+  "securityLocator": "filename:L#line_number or empty string",
+  "logic": "<Description of actual logic errors found>",
+  "logicLocator": "filename:L#line_number or empty string", 
   "optimization": "<Description of performance debt>. Write 'Acceptable.' if none.",
   "cleanCode": "<Description of readability debt>. Write 'Acceptable.' if none.",
   "summary": "One sentence executive summary of your actual findings."
-}
-
-MANDATORY Rule: For 'security' and 'logic', if you find an issue, you MUST end the string with the exact text '\\nLOCATOR: [filename:L#]' where filename and # are from the diff. If there are no issues, just write 'Acceptable.'
-
-IMPORTANT: Use the LOCATOR tag as the inline-comment anchor for the issue. Keep the error description and the designated line together in the same field, then render it in the formatted output with the line reference clearly shown.`
+}`
 
 const MAX_DIFF_LENGTH = 7500;
 
@@ -132,7 +130,9 @@ export async function analyzePrDiff(
         riskScore:       parseInt(String(parsed.riskScore || 0), 10),
         riskLevel:       (parsed.riskLevel || 'LOW').toUpperCase() as any,
         security:        ensureString(parsed.security,        'No critical security concerns detected.'),
+        securityLocator: ensureString(parsed.securityLocator, ''),
         logic:           ensureString(parsed.logic,           'Logic appears sound and consistent.'),
+        logicLocator:    ensureString(parsed.logicLocator,    ''),
         optimization:    ensureString(parsed.optimization,    'Performance metrics are within acceptable limits.'),
         cleanCode:       ensureString(parsed.cleanCode || parsed.deadCode, 'Code follows maintainability standards.'),
         summary:         ensureString(parsed.summary,         'Comprehensive summary not provided by Auditor.'),

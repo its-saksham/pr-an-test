@@ -8,6 +8,7 @@
 'use strict';
 
 import { Octokit } from '@octokit/rest';
+import { LlmAnalysis } from './scoring-rules.js';
 
 const COMMENT_SIGNATURE = '<!-- pr-risk-analyzer-bot -->';
 
@@ -57,31 +58,40 @@ export async function findExistingComment({ token, owner, repo, prNumber }: Comm
 /**
  * Extracts inline comments from LLM analysis fields.
  */
-export function extractInlineComments(security: string, logic: string): InlineComment[] {
+export function extractInlineComments(analysis: LlmAnalysis): InlineComment[] {
   const comments: InlineComment[] = [];
 
-  const extractFromField = (field: string, fieldName: string) => {
-    console.log(`[PR Risk Analyzer] 🔍 Checking ${fieldName} field for LOCATOR tags...`);
-    const locatorMatch = field.match(/LOCATOR:\s*\[([^\]]+)\]\s*$/m);
-    if (locatorMatch) {
-      const locator = locatorMatch[1];
-      const message = field.replace(/LOCATOR:\s*\[[^\]]+\]\s*$/m, '').trim();
-      const pathLineMatch = locator.match(/^(.+):L(\d+)$/);
-      if (pathLineMatch) {
-        const path = pathLineMatch[1];
-        const line = parseInt(pathLineMatch[2], 10);
-        console.log(`[PR Risk Analyzer] ✅ Found LOCATOR: ${path}:${line}`);
-        comments.push({ path, line, body: message });
-      } else {
-        console.warn(`[PR Risk Analyzer] ⚠️ Invalid LOCATOR format: ${locator}`);
-      }
-    } else {
-      console.log(`[PR Risk Analyzer] ℹ️ No LOCATOR tag found in ${fieldName}`);
-    }
-  };
+  console.log(`[PR Risk Analyzer] 🔍 Extracting inline comments from LLM analysis...`);
 
-  extractFromField(security, 'security');
-  extractFromField(logic, 'logic');
+  // Extract from security field
+  if (analysis.securityLocator && analysis.securityLocator.trim()) {
+    const pathLineMatch = analysis.securityLocator.match(/^(.+):L(\d+)$/);
+    if (pathLineMatch) {
+      const path = pathLineMatch[1];
+      const line = parseInt(pathLineMatch[2], 10);
+      console.log(`[PR Risk Analyzer] ✅ Found security LOCATOR: ${path}:${line}`);
+      comments.push({ path, line, body: analysis.security });
+    } else {
+      console.warn(`[PR Risk Analyzer] ⚠️ Invalid security LOCATOR format: ${analysis.securityLocator}`);
+    }
+  } else {
+    console.log(`[PR Risk Analyzer] ℹ️ No security LOCATOR provided`);
+  }
+
+  // Extract from logic field
+  if (analysis.logicLocator && analysis.logicLocator.trim()) {
+    const pathLineMatch = analysis.logicLocator.match(/^(.+):L(\d+)$/);
+    if (pathLineMatch) {
+      const path = pathLineMatch[1];
+      const line = parseInt(pathLineMatch[2], 10);
+      console.log(`[PR Risk Analyzer] ✅ Found logic LOCATOR: ${path}:${line}`);
+      comments.push({ path, line, body: analysis.logic });
+    } else {
+      console.warn(`[PR Risk Analyzer] ⚠️ Invalid logic LOCATOR format: ${analysis.logicLocator}`);
+    }
+  } else {
+    console.log(`[PR Risk Analyzer] ℹ️ No logic LOCATOR provided`);
+  }
 
   console.log(`[PR Risk Analyzer] 📊 Extracted ${comments.length} inline comment(s)`);
   return comments;

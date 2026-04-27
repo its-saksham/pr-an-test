@@ -30,7 +30,7 @@ jobs:
 
     defaults:
       run:
-        shell: bash
+        shell: cmd
         
     steps:
       - name: Checkout repository
@@ -65,7 +65,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # Local LLM Configuration (accessible via self-hosted runner)
           LLM_ENDPOINT: "http://127.0.0.1:11434/v1"
-          LLM_MODEL: "phi3"
+          LLM_MODEL: "gemma4:e2b"
         run: npx tsx index.ts
 
       - name: Persist AI Memory

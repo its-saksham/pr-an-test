@@ -1,6 +1,6 @@
 
 import { analyzePrDiff, initializeProjectDna } from './lib/llm-service.js';
-import fs from 'node:fs';
+import fs from 'fs';
 
 async function runStage1Audit() {
   const diff = fs.readFileSync('../../../src/video/concurrency-guard.js', 'utf8');

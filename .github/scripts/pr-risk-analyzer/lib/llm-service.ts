@@ -40,8 +40,9 @@ YOUR EXACT OUTPUT MUST BE THIS JSON STRUCTURE:
   "summary": "One sentence executive summary of your actual findings."
 }
 
-MANDATORY Rule: For 'security' and 'logic', if you find an issue, you MUST end the string with the exact text '\\nLOCATOR: [filename:L#]' where filename and # are from the diff. If there are no issues, just write 'Acceptable.'`;
+MANDATORY Rule: For 'security' and 'logic', if you find an issue, you MUST end the string with the exact text '\\nLOCATOR: [filename:L#]' where filename and # are from the diff. If there are no issues, just write 'Acceptable.'
 
+IMPORTANT: Use the LOCATOR tag as the inline-comment anchor for the issue. Keep the error description and the designated line together in the same field, then render it in the formatted output with the line reference clearly shown.`
 
 const MAX_DIFF_LENGTH = 7500;
 

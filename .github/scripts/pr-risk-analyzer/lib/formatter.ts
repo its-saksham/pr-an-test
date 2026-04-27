@@ -16,6 +16,11 @@ const MAX_RISKY_FILES_SHOWN = 8;
 // Max number of "passed" checks to list in the summary
 const MAX_PASSED_SHOWN = 5;
 
+export function renderScoreBar(value: number, max: number, width: number): string {
+  const filled = Math.round((value / max) * width);
+  const empty = Math.max(0, width - filled);
+  return `|${'█'.repeat(filled)}${'░'.repeat(empty)}|`;
+}
 
 /**
  * Builds the full Markdown PR comment from AI insights and raw PR data.
@@ -23,7 +28,7 @@ const MAX_PASSED_SHOWN = 5;
 export function formatComment(
   _result: any, 
   prData: PrData, 
-  _delta: any,
+  _delta: any = null,
   llmAnalysis: LlmAnalysis | null = null
 ): string {
   // ── Header ────────────────────────────────────────────────────────────────
@@ -38,6 +43,24 @@ export function formatComment(
   // ── AI Insights ───────────────────────────────────────────────────────────
   let aiSection = '';
   let aiDetails = '';
+
+  const formatLocatorAwareField = (text: string, fallback: string): string => {
+    const normalized = (text || fallback || '').trim();
+    const locatorMatch = normalized.match(/LOCATOR:\s*\[([^\]]+)\]\s*$/m);
+    const locator = locatorMatch?.[1];
+    const message = locator
+      ? normalized.replace(/LOCATOR:\s*\[[^\]]+\]\s*$/m, '').trim()
+      : normalized;
+
+    const lines = message.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (locator) {
+      const firstLine = `> - ${lines.shift() || ''}`;
+      const restLines = lines.map((line) => `>   ${line}`);
+      return [firstLine, ...restLines, `>   _Locator:_ \`${locator}\``].join('\n');
+    }
+
+    return `> ${lines.join('\n> ')}`;
+  };
 
   if (!llmAnalysis) {
     aiSection = '> ⚠️ _No AI Qualitative Review available for this diff._';
@@ -67,8 +90,8 @@ export function formatComment(
       '',
       '> [!TIP]',
       '> **📉 Tech Debt & Maintainability**',
-      `> *Performance*: ${llmAnalysis.optimization.replace(/\\n/g, '\n> ')}`,
-      `> *Clean Code*: ${(llmAnalysis.cleanCode || 'Acceptable.').replace(/\\n/g, '\n> ')}`,
+      `> *Performance*: ${llmAnalysis.optimization.replace(/\r?\n/g, '\n> ')}`,
+      `> *Clean Code*: ${(llmAnalysis.cleanCode || 'Acceptable.').replace(/\r?\n/g, '\n> ')}`,
       '',
       `> **Executive Summary:** ${llmAnalysis.summary}`,
       '',

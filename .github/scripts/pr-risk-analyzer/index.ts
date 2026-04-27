@@ -7,11 +7,13 @@
  *   2. SCORE   → Run deterministic risk rules
  *   3. DELTA   → Compare current vs previous result (if exists)
  *   4. COMMENT → Format and post/update structured PR comment
+ *   5. INLINE  → Post inline review comments from LLM LOCATOR tags
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 'use strict';
 
+import { Octokit } from '@octokit/rest';
 import { fetchPrData, reorderDiff } from './lib/fetcher.js';
 import { scorePr } from './lib/scorer.js';
 import { formatComment } from './lib/formatter.js';
@@ -21,6 +23,8 @@ import { analyzePrDiff, synthesizeKnowledge, initializeProjectDna } from './lib/
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { extractInlineComments } from './lib/locator-parser.js';
+import { postInlineReview, fetchHeadCommitSha } from './lib/review-poster.js';
 
 const MEMORY_FILE = 'audit_memory.md';
 
@@ -120,21 +124,21 @@ async function run() {
     `${prData.totalChanges} lines changed. Diff Size: ${diffSize} chars.`
   );
 
-  // ── Stage 1.7: Load Project Memory ──────────────────────────────
+  // ── Stage 1.7: Load Project Memory ────────────────────────────────────────
   let projectContext = '';
   if (fs.existsSync(MEMORY_FILE)) {
     console.log(`[PR Risk Analyzer] 🧠 Loading project memory from ${MEMORY_FILE}...`);
     projectContext = fs.readFileSync(MEMORY_FILE, 'utf8');
   }
 
-  // ── Stage 2: AI Qualitative Analysis ──────────────────────────
+  // ── Stage 2: AI Qualitative Analysis ──────────────────────────────────────
   let llmAnalysis = null;
   if (llmEndpoint && prData.fullDiff && prData.fullDiff.trim().length > 0) {
     console.log('[PR Risk Analyzer] 🤖 Performing qualitative AI analysis...');
-    
+
     // REORDER DIFF: Put high-risk code (critical/config) at the top based on scorer tags
     const prioritizedDiff = reorderDiff(prData.fullDiff || '', prData.fileDetails);
-    
+
     console.log(`[PR Risk Analyzer] 📊 Prioritized Diff Size: ${prioritizedDiff.length} chars.`);
     console.log(`[PR Risk Analyzer] 📊 Diff Preview: ${prioritizedDiff.substring(0, 100).replace(/\n/g, ' ')}...`);
 
@@ -144,16 +148,16 @@ async function run() {
       .map(f => f.path);
 
     const startTime = Date.now();
-    llmAnalysis = await analyzePrDiff(prioritizedDiff, { 
-      endpoint: llmEndpoint, 
+    llmAnalysis = await analyzePrDiff(prioritizedDiff, {
+      endpoint: llmEndpoint,
       model: llmModel,
       priorityFiles: highPriorityFiles
     }, projectContext);
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    
+
     console.log(`[PR Risk Analyzer] 🤖 AI Analysis completed in ${duration}s.`);
 
-    // ── Stage 2.5: Knowledge Synthesis (Learning & Bootstrapping) ──────────
+    // ── Stage 2.5: Knowledge Synthesis (Learning & Bootstrapping) ────────────
     if (llmAnalysis) {
       console.log('[PR Risk Analyzer] 🧠 Learning Phase...');
 
@@ -164,8 +168,8 @@ async function run() {
       if (isFirstRun) {
         console.log('[PR Risk Analyzer] 🧬 Bootstrapping Initial Project DNA...');
         const initialDna = await initializeProjectDna(
-          prioritizedDiff, 
-          { endpoint: llmEndpoint, model: llmModel }, 
+          prioritizedDiff,
+          { endpoint: llmEndpoint, model: llmModel },
           llmAnalysis.summary
         );
 
@@ -176,8 +180,8 @@ async function run() {
       } else {
         console.log('[PR Risk Analyzer] 🧠 Synthesizing new technical knowledge...');
         const newWisdom = await synthesizeKnowledge(
-          prioritizedDiff, 
-          { endpoint: llmEndpoint, model: llmModel }, 
+          prioritizedDiff,
+          { endpoint: llmEndpoint, model: llmModel },
           llmAnalysis.summary
         );
 
@@ -191,7 +195,7 @@ async function run() {
     }
   }
 
-  // ── Stage 3: Format & Post Comment ────────────────────────────────────────
+  // ── Stage 3: Format & Post Summary Comment ────────────────────────────────
   console.log('[PR Risk Analyzer] 💬 Formatting comment...');
   // No longer using deterministic scoring rules. AI is the sole source of Risk metrics.
   const commentBody = formatComment(null, prData, null, llmAnalysis);
@@ -215,6 +219,49 @@ async function run() {
   console.log(
     `[PR Risk Analyzer] ✅ Comment ${commentResult.action} successfully: ${commentResult.commentUrl}`
   );
+
+  // ── Stage 4: Post Inline Review Comments ──────────────────────────────────
+  // Only runs when the LLM produced an analysis with LOCATOR tags to anchor to.
+  if (llmAnalysis) {
+    const inlineComments = extractInlineComments(llmAnalysis);
+    console.log(inlineComments);
+    if (inlineComments.length > 0) {
+      console.log(`[PR Risk Analyzer] 💬 Posting ${inlineComments.length} inline review comment(s)...`);
+
+      try {
+        const commitSha = await fetchHeadCommitSha(
+          new Octokit({ auth: token }),
+          owner,
+          repo,
+          prNumber,
+        );
+
+        const reviewResult = await postInlineReview({
+          token,
+          owner,
+          repo,
+          prNumber,
+          commitSha,
+          comments: inlineComments,
+          // Use the executive summary as the top-level review body so reviewers
+          // get full context when they open the "Files changed" tab.
+          summary: llmAnalysis.summary,
+        });
+
+        console.log(
+          `[PR Risk Analyzer] ✅ Inline review posted: ${reviewResult.postedCount} comment(s) placed` +
+          ` (${reviewResult.skippedCount} skipped — line not in diff). Review: ${reviewResult.reviewUrl}`
+        );
+      } catch (err: any) {
+        // Inline comments are best-effort — a failure here must not fail the whole run
+        // since the summary comment was already posted successfully above.
+        console.warn(`[PR Risk Analyzer] ⚠️ Inline review failed (summary comment still posted): ${err.message}`);
+      }
+    } else {
+      console.log('[PR Risk Analyzer] ℹ️ No LOCATOR tags found in AI analysis — skipping inline comments.');
+    }
+  }
+
   console.log('[PR Risk Analyzer] 🏁 Analysis complete.');
 }
 

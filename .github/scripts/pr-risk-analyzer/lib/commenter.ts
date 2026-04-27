@@ -87,3 +87,4 @@ export async function postOrUpdateComment({ token, owner, repo, prNumber, body }
     commentUrl: (data as any).html_url 
   };
 }
+export { fetchHeadCommitSha } from './review-poster.js';

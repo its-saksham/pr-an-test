@@ -30,7 +30,7 @@ jobs:
 
     defaults:
       run:
-        shell: bash
+        shell: cmd
         
     steps:
       - name: Checkout repository

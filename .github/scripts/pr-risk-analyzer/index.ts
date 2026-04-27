@@ -224,7 +224,7 @@ async function run() {
   // Only runs when the LLM produced an analysis with LOCATOR tags to anchor to.
   if (llmAnalysis) {
     const inlineComments = extractInlineComments(llmAnalysis);
-
+    console.log(inlineComments);
     if (inlineComments.length > 0) {
       console.log(`[PR Risk Analyzer] 💬 Posting ${inlineComments.length} inline review comment(s)...`);
 

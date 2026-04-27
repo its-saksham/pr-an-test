@@ -15,7 +15,7 @@
 import { fetchPrData, reorderDiff } from './lib/fetcher.js';
 import { scorePr } from './lib/scorer.js';
 import { formatComment } from './lib/formatter.js';
-import { postOrUpdateComment, findExistingComment } from './lib/commenter.js';
+import { postOrUpdateComment, findExistingComment, extractInlineComments, postInlineComments } from './lib/commenter.js';
 import { parsePreviousResult, computeDelta } from './lib/delta.js';
 import { analyzePrDiff, synthesizeKnowledge, initializeProjectDna } from './lib/llm-service.js';
 import { execSync } from 'child_process';
@@ -215,6 +215,27 @@ async function run() {
   console.log(
     `[PR Risk Analyzer] ✅ Comment ${commentResult.action} successfully: ${commentResult.commentUrl}`
   );
+
+  // ── Post Inline Comments ──────────────────────────────────────────────────
+  if (llmAnalysis && prData.headSha) {
+    const inlineComments = extractInlineComments(llmAnalysis.security, llmAnalysis.logic);
+    if (inlineComments.length > 0) {
+      console.log(`[PR Risk Analyzer] 💬 Posting ${inlineComments.length} inline comment(s)...`);
+      await postInlineComments({
+        token,
+        owner,
+        repo,
+        prNumber,
+        commitId: prData.headSha,
+        comments: inlineComments,
+        diff: prData.fullDiff || '',
+      });
+      console.log('[PR Risk Analyzer] ✅ Inline comments posted.');
+    } else {
+      console.log('[PR Risk Analyzer] ℹ️ No inline comments to post.');
+    }
+  }
+
   console.log('[PR Risk Analyzer] 🏁 Analysis complete.');
 }
 

@@ -10,37 +10,43 @@
 
 import { LlmAnalysis } from './scoring-rules.js';
 
-const SYSTEM_PROMPT = `You are a Paranoid Senior Software Security Auditor. Your job is to perform a high-fidelity audit to identify "Atomic Truths"—bugs that stay syntactically perfect but are logically bankrupt.
+const SYSTEM_PROMPT = `You are a Paranoid Senior Software Security Auditor analyzing a PR DIFF.
+Your job is to identify "Atomic Truths"—bugs that stay syntactically perfect but are logically bankrupt.
 
-AUDIT WORKFLOW:
-1. ANALYZE INTENT: First, identify exactly what the code is TRYING to do.
-2. ADVERSARIAL TRACE: Trace the arithmetic and state transitions. Look for: sign flips (+/-), integer underflow, off-by-one, and fail-open logic.
-3. VERIFY INVARIANTS: Ensure project-specific rules are not breached.
+ZERO-TRUST AUDIT STRATEGY:
+- Assume every condition modification or boolean flip is an intentional sabotage.
+- Verify what happens when modified conditions are 'true' versus 'false'.
+- DO NOT hallucinate line numbers. Use only files present in the DIFF.
 
-MANDATORY OUTPUT RULES:
-- EVERY technical finding MUST be accompanied by a LOCATOR.
-- FORMAT: LOCATOR: [filename:L<line>]
-- EACH LOCATOR MUST BE ON ITS OWN NEW LINE.
-SCORING:
-Assign a 'riskScore' (0-100) and 'riskLevel' (LOW, MEDIUM, HIGH, CRITICAL) based on the consequence of the code change:
-- CRITICAL (90-100): Catastrophic logic/security defect.
+SCORING (Risk Baseline):
+- CRITICAL (90-100): Catastrophic logic/security defect (e.g., Auth bypass).
 - HIGH (70-89): Significant defect.
-- MEDIUM (30-69): Minor defect or debt.
-- LOW (0-29): Cleanup or style.
+- MEDIUM (30-69): Minor logic error.
+- LOW (0-29): Style/cleanup.
 
-EXAMPLE RESPONSE:
+INSTRUCTIONS:
+Read the PR DIFF carefully. You MUST return a JSON object populated with your findings.
+You MUST replace the placeholder values in the JSON object below with your actual analysis of the provided code.
+DO NOT output placeholder text. DO NOT copy the template verbatim. Write actual sentences describing the provided code changes.
+
+YOUR EXACT OUTPUT MUST BE THIS JSON STRUCTURE:
 {
-  "riskScore": 95,
-  "riskLevel": "CRITICAL",
-  "security": "Found a potential session hijacking risk due to weak cookie attributes.\\nLOCATOR: [src/auth/session.js:L42]",
-  "logic": "The arithmetic logic in calculateTotal is inverted, causing a rebate instead of a tax charge.\\nLOCATOR: [src/orders/service.js:L15]",
-  "optimization": "Acceptable.",
-  "cleanCode": "Acceptable.",
-  "summary": "CRITICAL logic inversion detected in Order Service."
+  "riskScore": 0,
+  "riskLevel": "CRITICAL, HIGH, MEDIUM, or LOW",
+  "security": "<Description of actual security flaws found>",
+  "securityLocator": "src/file.ts:5 or empty string (line number only, no 'L' prefix)",
+  "logic": "<Description of actual logic errors found>",
+  "logicLocator": "src/file.ts:10 or empty string (for ranges, use the first line: src/file.ts:6 for lines 6-9)",
+  "optimization": "<Description of performance debt>. Write 'Acceptable.' if none.",
+  "cleanCode": "<Description of readability debt>. Write 'Acceptable.' if none.",
+  "summary": "One sentence executive summary of your actual findings."
 }
 
-You MUST respond in strict JSON format.
-Schema: { "riskScore": number, "riskLevel": string, "security": string, "logic": string, "optimization": string, "cleanCode": string, "summary": string }`;
+CRITICAL: securityLocator and logicLocator format examples:
+- CORRECT: "src/auth.ts:5"
+- CORRECT: "src/modules/payment.ts:42"
+- INCORRECT: "src/auth.ts:L5" (do NOT use L prefix)
+- INCORRECT: "src/auth.ts:5-9" (for ranges, use ONLY the first line)`
 
 const MAX_DIFF_LENGTH = 7500;
 
@@ -130,10 +136,11 @@ export async function analyzePrDiff(
         riskScore:       parseInt(String(parsed.riskScore || 0), 10),
         riskLevel:       (parsed.riskLevel || 'LOW').toUpperCase() as any,
         security:        ensureString(parsed.security,        'No critical security concerns detected.'),
+        securityLocator: ensureString(parsed.securityLocator, ''),
         logic:           ensureString(parsed.logic,           'Logic appears sound and consistent.'),
+        logicLocator:    ensureString(parsed.logicLocator,    ''),
         optimization:    ensureString(parsed.optimization,    'Performance metrics are within acceptable limits.'),
-        deadCode:        ensureString(parsed.cleanCode || parsed.deadCode, 'Code follows maintainability standards.'),
-        maintainability: ensureString(parsed.summary,         'General maintainability is acceptable.'),
+        cleanCode:       ensureString(parsed.cleanCode || parsed.deadCode, 'Code follows maintainability standards.'),
         summary:         ensureString(parsed.summary,         'Comprehensive summary not provided by Auditor.'),
         raw: content
       };
@@ -144,20 +151,23 @@ export async function analyzePrDiff(
       console.warn(`[PR Risk Analyzer] ⚠️ Attempt ${attempt} failed: ${errorMsg}`);
 
       if (isLastAttempt) {
-        console.error('[PR Risk Analyzer] ❌ Final attempt failed. Surfacing error to PR.');
+        console.error('[PR Risk Analyzer] ❌ All LLM analysis attempts failed');
+        console.error(`[PR Risk Analyzer] 💥 Final Error: ${errorMsg}`);
+        console.error('[PR Risk Analyzer] 🔧 Troubleshooting: Check LLM endpoint connectivity and model availability');
         return {
           riskScore: 50,
           riskLevel: 'MEDIUM',
-          security: `⚠️ LLM Connection Failure: ${errorMsg}`,
-          logic: 'Evaluation skipped due to connection error.',
-          optimization: 'N/A',
-          deadCode: 'N/A',
-          maintainability: 'N/A',
-          summary: `### ❌ AI Evaluation Unavailable\nThe local LLM endpoint at your runner failed to respond after ${RETRY_ATTEMPTS} attempts.\n**Error:** ${errorMsg}`,
-          raw: errorMsg
+          security: `❌ **AI Analysis Failed**: ${errorMsg}. Manual security review required.`,
+          securityLocator: '',
+          logic: `❌ **AI Analysis Failed**: ${errorMsg}. Manual logic review required.`,
+          logicLocator: '',
+          optimization: '⚠️ Could not assess performance impact due to analysis failure.',
+          cleanCode: '⚠️ Could not assess code quality due to analysis failure.',
+          summary: `🚨 Analysis interrupted: ${errorMsg}. Please review changes manually.`,
+          raw: `Error: ${errorMsg}`
         };
       }
-      
+
       // Short delay before retry
       await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
     }

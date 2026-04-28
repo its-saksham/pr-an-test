@@ -19,7 +19,14 @@ const MAX_PASSED_SHOWN = 5;
 export function renderScoreBar(value: number, max: number, width: number): string {
   const filled = Math.round((value / max) * width);
   const empty = Math.max(0, width - filled);
-  return `|${'█'.repeat(filled)}${'░'.repeat(empty)}|`;
+  const percentage = Math.round((value / max) * 100);
+
+  // Color coding based on risk level
+  let color = '🟢'; // Green for low risk
+  if (percentage >= 70) color = '🔴'; // Red for high risk
+  else if (percentage >= 40) color = '🟡'; // Yellow for medium risk
+
+  return `${color} ${'█'.repeat(filled)}${'░'.repeat(empty)} ${percentage}%`;
 }
 
 /**
@@ -33,9 +40,16 @@ export function formatComment(
 ): string {
   // ── Header ────────────────────────────────────────────────────────────────
   const header = [
-    '# 🚦 AI PR Analysis',
+    '# 🚦 **AI-Powered PR Risk Analysis**',
     '',
-    '> **Line-by-line verification** powered by local LLM.',
+    '<details>',
+    '<summary>📊 **Analysis Summary**</summary>',
+    '',
+    '> **🔍 Analysis Type**: Line-by-line security & logic verification',
+    '> **🤖 AI Engine**: Local LLM-powered audit',
+    '> **⚡ Processing**: Real-time diff analysis',
+    '',
+    '</details>',
     '',
     '---',
   ].join('\n');
@@ -63,38 +77,65 @@ export function formatComment(
   };
 
   if (!llmAnalysis) {
-    aiSection = '> ⚠️ _No AI Qualitative Review available for this diff._';
+    aiSection = [
+      '> [!WARNING]',
+      '> **⚠️ AI Analysis Unavailable**',
+      '> Could not perform qualitative security audit. Check LLM connectivity.',
+      '> Manual code review recommended.',
+    ].join('\n');
   } else {
+    // Risk level indicators with better visual design
     let alertType = '[!TIP]';
-    let recommendation = '✅ Standard Review Process';
-    if (llmAnalysis.riskLevel === 'CRITICAL') { alertType = '[!CAUTION]'; recommendation = '🛑 **MERGE BLOCKED.** Severe vulnerabilities detected.'; }
-    else if (llmAnalysis.riskLevel === 'HIGH') { alertType = '[!WARNING]'; recommendation = '🚨 Stop & Review Carefully.'; }
-    else if (llmAnalysis.riskLevel === 'MEDIUM') { alertType = '[!IMPORTANT]'; recommendation = '🔍 Manual Verification Advised.'; }
+    let recommendation = '✅ **APPROVED** - Standard review process';
+    let riskIcon = '🟢';
+    let riskColor = 'green';
+
+    if (llmAnalysis.riskLevel === 'CRITICAL') {
+      alertType = '[!DANGER]';
+      recommendation = '🚫 **BLOCKED** - Critical vulnerabilities detected';
+      riskIcon = '🔴';
+      riskColor = 'red';
+    } else if (llmAnalysis.riskLevel === 'HIGH') {
+      alertType = '[!CAUTION]';
+      recommendation = '⚠️ **STOP & REVIEW** - High-risk changes require careful inspection';
+      riskIcon = '🟠';
+      riskColor = 'orange';
+    } else if (llmAnalysis.riskLevel === 'MEDIUM') {
+      alertType = '[!WARNING]';
+      recommendation = '🔍 **REVIEW REQUIRED** - Manual verification advised';
+      riskIcon = '🟡';
+      riskColor = 'yellow';
+    }
 
     aiSection = [
-      `## 🛡️ AI Risk Audit: ${llmAnalysis.riskLevel}`,
+      `## ${riskIcon} **AI Risk Assessment: ${llmAnalysis.riskLevel}**`,
       '',
       `> ${alertType}`,
-      `> **Risk Score: ${llmAnalysis.riskScore}/100** — ${recommendation}`,
+      `> **Risk Score**: ${renderScoreBar(llmAnalysis.riskScore, 100, 20)}`,
+      `> **Recommendation**: ${recommendation}`,
       '',
     ].join('\n');
 
     aiDetails = [
+      '<details>',
+      '<summary>🔍 **Detailed Analysis**</summary>',
+      '',
       '> [!IMPORTANT]',
-      '> **🚨 Critical Security Risks**',
-      `> ${formatLocatorAwareField(llmAnalysis.security, 'No critical security concerns detected.')}`,
+      '> **🚨 Critical Security Issues**',
+      `> ${formatLocatorAwareField(llmAnalysis.security, '✅ No critical security concerns detected.')}`,
       '',
       '> [!WARNING]',
-      '> **🧱 Architecture & Logic Flaws**',
-      `> ${formatLocatorAwareField(llmAnalysis.logic, 'Logic appears sound and consistent.')}`,
+      '> **🧱 Architecture & Logic Issues**',
+      `> ${formatLocatorAwareField(llmAnalysis.logic, '✅ Logic appears sound and consistent.')}`,
       '',
       '> [!TIP]',
-      '> **📉 Tech Debt & Maintainability**',
-      `> *Performance*: ${formatLocatorAwareField(llmAnalysis.optimization, 'Performance metrics are within acceptable limits.')}`,
-      `> *Clean Code*: ${formatLocatorAwareField(llmAnalysis.cleanCode || 'Acceptable.', 'Code follows maintainability standards.')}`,
+      '> **📈 Performance & Maintainability**',
+      `> *⚡ Performance*: ${formatLocatorAwareField(llmAnalysis.optimization, '✅ Performance metrics are within acceptable limits.')}`,
+      `> *🧹 Code Quality*: ${formatLocatorAwareField(llmAnalysis.cleanCode || 'Acceptable.', '✅ Code follows maintainability standards.')}`,
       '',
-      `> **Executive Summary:** ${llmAnalysis.summary}`,
+      `> **📋 Executive Summary**: ${llmAnalysis.summary}`,
       '',
+      '</details>',
     ].join('\n');
   }
 

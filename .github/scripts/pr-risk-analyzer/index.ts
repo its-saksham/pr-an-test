@@ -76,7 +76,14 @@ function checkNonAdmin() {
  * Main orchestration function.
  */
 async function run() {
+  const startTime = Date.now();
   console.log('[PR Risk Analyzer] 🚀 Starting analysis...');
+  console.log('═'.repeat(60));
+  console.log('═'.repeat(60));
+
+  // Phase 1: Environment & Connectivity Check
+  console.log('[PR Risk Analyzer] 🔧 Phase 1: Environment Setup');
+  console.log('[PR Risk Analyzer] 🌐 Checking LLM connectivity...');
 
   checkNonAdmin();
   validateConfig(config);
@@ -88,13 +95,14 @@ async function run() {
     try {
       console.log(`[PR Risk Analyzer] 🌐 Diagnostic: Pinging LLM at ${llmEndpoint}...`);
       await fetch(llmEndpoint, { method: 'HEAD' });
-      console.log('[PR Risk Analyzer] 🌐 Diagnostic: LLM Endpoint is reachable.');
+      console.log('[PR Risk Analyzer] ✅ LLM endpoint is reachable');
     } catch (err: any) {
-      console.warn(`[PR Risk Analyzer] 🌐 Diagnostic: LLM Endpoint UNREACHABLE: ${err.message}`);
+      console.warn(`[PR Risk Analyzer] ⚠️ LLM Endpoint UNREACHABLE: ${err.message}`);
     }
   }
 
-  // ── Stage 0: Check for existing comment ───────────────────────────────────
+  // ── Phase 1: Environment Setup ────────────────────────────────────────────
+  console.log('[PR Risk Analyzer] 🔧 Phase 1: Environment Setup');
   console.log('[PR Risk Analyzer] 🔍 Checking for existing analysis comment...');
   let existingComment = null;
   try {
@@ -103,7 +111,8 @@ async function run() {
     console.warn('[PR Risk Analyzer] ⚠️ Could not fetch existing comment (skipping delta):', err.message);
   }
 
-  // ── Stage 1: Fetch PR Data ─────────────────────────────────────────────────
+  // ── Phase 2: Data Collection ──────────────────────────────────────────────
+  console.log('[PR Risk Analyzer] 📊 Phase 2: Data Collection');
   console.log(`[PR Risk Analyzer] 📡 Fetching data for PR #${prNumber} (${owner}/${repo})...`);
   let prData;
   try {
@@ -129,8 +138,11 @@ async function run() {
 
   // ── Stage 2: AI Qualitative Analysis ──────────────────────────
   let llmAnalysis = null;
+  const analysisStartTime = Date.now();
   if (llmEndpoint && prData.fullDiff && prData.fullDiff.trim().length > 0) {
-    console.log('[PR Risk Analyzer] 🤖 Performing qualitative AI analysis...');
+    // ── Phase 3: AI Analysis ──────────────────────────────────────────────────
+    console.log('[PR Risk Analyzer] 🤖 Phase 3: AI Analysis');
+    console.log('[PR Risk Analyzer] 🧠 Performing qualitative AI analysis...');
     
     // REORDER DIFF: Put high-risk code (critical/config) at the top based on scorer tags
     const prioritizedDiff = reorderDiff(prData.fullDiff || '', prData.fileDetails);
@@ -192,7 +204,9 @@ async function run() {
   }
 
   // ── Stage 3: Format & Post Comment ────────────────────────────────────────
-  console.log('[PR Risk Analyzer] 💬 Formatting comment...');
+  // ── Phase 4: Report Generation ────────────────────────────────────────────
+  console.log('[PR Risk Analyzer] 📝 Phase 4: Report Generation');
+  console.log('[PR Risk Analyzer] 💬 Formatting analysis comment...');
   // No longer using deterministic scoring rules. AI is the sole source of Risk metrics.
   const commentBody = formatComment(null, prData, null, llmAnalysis);
 
@@ -224,6 +238,8 @@ async function run() {
     console.log(`[PR Risk Analyzer] 🔍 Raw LLM Response length: ${llmAnalysis.raw?.length}`);
     console.log(`[PR Risk Analyzer] 🔍 Security Locator: ${llmAnalysis.securityLocator}`);
     console.log(`[PR Risk Analyzer] 🔍 Logic Locator: ${llmAnalysis.logicLocator}`);
+    const analysisDuration = ((Date.now() - analysisStartTime) / 1000).toFixed(1);
+    console.log(`[PR Risk Analyzer] ⏱️ AI analysis completed in ${analysisDuration}s`);
     if (llmAnalysis.raw) {
       try {
         const parsedRaw = JSON.parse(llmAnalysis.raw);
@@ -249,18 +265,59 @@ async function run() {
         diff: prData.fullDiff || '',
       });
       console.log(`[PR Risk Analyzer] 📊 Diff length: ${(prData.fullDiff || '').length} characters`);
-      console.log('[PR Risk Analyzer] ✅ Inline comments posted.');
+      console.log('[PR Risk Analyzer] ✅ Inline comments posted successfully.');
     } else {
-      console.log('[PR Risk Analyzer] ℹ️ No inline comments to post.');
+      console.log('[PR Risk Analyzer] ℹ️ No inline comments to post (no issues detected).');
     }
   } else {
     console.log(`[PR Risk Analyzer] ℹ️ Skipping inline comments - LLM analysis: ${!!llmAnalysis}, Head SHA: ${!!prData.headSha}`);
   }
 
   console.log('[PR Risk Analyzer] 🏁 Analysis complete.');
+  const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log('═'.repeat(60));
+  console.log(`[PR Risk Analyzer] ✅ All phases completed successfully in ${totalTime}s!`);
 }
 
-run().catch((err) => {
-  console.error('[PR Risk Analyzer] 💥 Unhandled error:', err);
+run().catch(async (err) => {
+  console.error('[PR Risk Analyzer] 💥 Critical failure during analysis');
+  console.error(`[PR Risk Analyzer] 🚨 Error: ${err.message}`);
+  console.error('[PR Risk Analyzer] 📋 Stack trace:', err.stack);
+
+  // Try to post error comment
+  try {
+    await postOrUpdateComment({
+      token: process.env.GITHUB_TOKEN!,
+      owner: process.env.GITHUB_REPOSITORY!.split('/')[0],
+      repo: process.env.GITHUB_REPOSITORY!.split('/')[1],
+      prNumber: parseInt(process.env.PR_NUMBER!),
+      body: [
+        '# 🚨 **PR Analysis Failed**',
+        '',
+        '> [!DANGER]',
+        '> **🔥 Critical Error**: Analysis could not complete',
+        '',
+        '<details>',
+        '<summary>🚨 Error Details</summary>',
+        '',
+        '```\n' + err.message + '\n```',
+        '',
+        '**🔧 Troubleshooting Steps**:',
+        '- Check GitHub token permissions',
+        '- Verify PR exists and is accessible',
+        '- Ensure LLM service is running',
+        '- Check network connectivity',
+        '',
+        '**📞 Manual Review Required**: Please perform manual code review.',
+        '</details>',
+        '',
+        `<!-- pr-risk-analyzer-error-${Date.now()} -->`
+      ].join('\n')
+    });
+    console.log('[PR Risk Analyzer] ✅ Error comment posted successfully');
+  } catch (commentError: any) {
+    console.error('[PR Risk Analyzer] ❌ Could not post error comment:', commentError.message);
+  }
+
   process.exit(1);
 });

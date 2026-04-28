@@ -151,19 +151,23 @@ export async function analyzePrDiff(
       console.warn(`[PR Risk Analyzer] ⚠️ Attempt ${attempt} failed: ${errorMsg}`);
 
       if (isLastAttempt) {
-        console.error('[PR Risk Analyzer] ❌ Final attempt failed. Surfacing error to PR.');
+        console.error('[PR Risk Analyzer] ❌ All LLM analysis attempts failed');
+        console.error(`[PR Risk Analyzer] 💥 Final Error: ${errorMsg}`);
+        console.error('[PR Risk Analyzer] 🔧 Troubleshooting: Check LLM endpoint connectivity and model availability');
         return {
           riskScore: 50,
           riskLevel: 'MEDIUM',
-          security: `⚠️ LLM Connection Failure: ${errorMsg}`,
-          logic: 'Evaluation skipped due to connection error.',
-          optimization: 'N/A',
-          cleanCode: 'N/A',
-          summary: `### ❌ AI Evaluation Unavailable\nThe local LLM endpoint at your runner failed to respond after ${RETRY_ATTEMPTS} attempts.\n**Error:** ${errorMsg}`,
-          raw: errorMsg
+          security: `❌ **AI Analysis Failed**: ${errorMsg}. Manual security review required.`,
+          securityLocator: '',
+          logic: `❌ **AI Analysis Failed**: ${errorMsg}. Manual logic review required.`,
+          logicLocator: '',
+          optimization: '⚠️ Could not assess performance impact due to analysis failure.',
+          cleanCode: '⚠️ Could not assess code quality due to analysis failure.',
+          summary: `🚨 Analysis interrupted: ${errorMsg}. Please review changes manually.`,
+          raw: `Error: ${errorMsg}`
         };
       }
-      
+
       // Short delay before retry
       await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
     }

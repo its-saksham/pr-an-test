@@ -193,54 +193,50 @@ export async function postInlineComments({
 
 /**
  * Finds the diff position for a given file and line number by parsing the unified diff.
- * Returns the position relative to the hunk header (1-based).
+ * Returns the position index as required by the GitHub PR Review API.
+ * The 'position' is the index of the line in the diff, starting from 1 for the first line of the diff for that file.
  */
 function findDiffPosition(diff: string, path: string, targetLine: number): number | null {
   const lines = diff.split('\n');
   let currentFile = '';
-  let inHunk = false;
-  let hunkStartLine = 0;
-  let positionInHunk = 0;
+  let currentLineInFile = 0;
+  let fileDiffPosition = 0;
+  let found = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
     if (line.startsWith('diff --git')) {
-      // New file
       const match = line.match(/ b\/(.+)$/);
       currentFile = match ? match[1] : '';
-      inHunk = false;
-      positionInHunk = 0;
-    } else if (line.startsWith('@@') && currentFile === path) {
-      // New hunk for our file
+      fileDiffPosition = 0;
+      if (found) break; // If we already found it for the previous file, we're done
+    }
+
+    if (currentFile !== path) continue;
+
+    // We are in the file we care about. 
+    // Every line in the diff for this file (hunk headers, +, -, context) increments the position.
+    // Except for the 'diff --git', 'index', '---', and '+++' lines.
+    if (line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ')) {
+      continue;
+    }
+
+    fileDiffPosition++;
+
+    if (line.startsWith('@@')) {
       const match = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
       if (match) {
-        hunkStartLine = parseInt(match[1], 10);
-        inHunk = true;
-        positionInHunk = 0; // Reset position counter for this hunk
+        currentLineInFile = parseInt(match[1], 10);
       }
-    } else if (inHunk && currentFile === path) {
-      positionInHunk++;
-
-      // Check if this is the target line
-      if (line.startsWith('+')) {
-        // Added line
-        const currentLine = hunkStartLine + (positionInHunk - 1); // -1 because positionInHunk starts at 1 for the first line after @@
-        if (currentLine === targetLine) {
-          return positionInHunk;
-        }
-        hunkStartLine++; // Added lines increase the line counter
-      } else if (line.startsWith('-')) {
-        // Removed line - we can't comment on removed lines
-        // But we still count the position
-      } else if (line.startsWith(' ')) {
-        // Context line
-        const currentLine = hunkStartLine + (positionInHunk - 1);
-        if (currentLine === targetLine) {
-          return positionInHunk;
-        }
-        hunkStartLine++; // Context lines increase the line counter
-      }
+    } else if (line.startsWith('+')) {
+      if (currentLineInFile === targetLine) return fileDiffPosition;
+      currentLineInFile++;
+    } else if (line.startsWith('-')) {
+      // Deletions don't increment the current line counter for the NEW file
+    } else if (line.startsWith(' ')) {
+      if (currentLineInFile === targetLine) return fileDiffPosition;
+      currentLineInFile++;
     }
   }
 

@@ -26,11 +26,11 @@ SCORING GUIDELINES:
 - LOW (0-29): Minor issues or style concerns
 
 SUGGESTION GUIDELINES:
-- Provide actionable, high-quality code alternatives for identified risks.
-- A "fix" must resolve the root cause of the issue (security flaw, logic bug, performance bottleneck, or readability debt).
-- Ensure the suggested code follows professional engineering standards and clean code principles.
-- DO NOT simply refactor flawed logic; provide a correct and robust implementation.
-- If an issue is best resolved by removing code or using a different pattern, suggest that explicitly.
+- Provide a SURGICAL replacement for the code at the provided locator.
+- The suggestion MUST be ONLY the corrected code that should replace the line(s) at the locator.
+- DO NOT include the original flawed code in the suggestion. 
+- A "fix" must resolve the root cause (e.g., if a backdoor is found, the suggestion should simply be to REMOVE it).
+- Ensure the suggestion is a complete, syntactically correct replacement for the identified block.
 
 INSTRUCTIONS:
 Read the PR DIFF carefully. Return a JSON object with your findings.

@@ -36,12 +36,16 @@ YOUR EXACT OUTPUT MUST BE THIS JSON STRUCTURE:
   "riskLevel": "CRITICAL, HIGH, MEDIUM, or LOW",
   "security": "<Description of actual security flaws found>",
   "securityLocator": "src/file.ts:5 or empty string (line number only, no 'L' prefix)",
+  "securitySuggestion": "<The exact code replacement to fix the security issue, or empty string. Use GitHub suggestion format.>",
   "logic": "<Description of actual logic errors found>",
-  "logicLocator": "src/file.ts:10 or empty string (for ranges, use the first line: src/file.ts:6 for lines 6-9)",
+  "logicLocator": "src/file.ts:10 or empty string",
+  "logicSuggestion": "<The exact code replacement to fix the logic error, or empty string. Use GitHub suggestion format.>",
   "optimization": "<Description of performance debt>. Write 'Acceptable.' if none.",
   "cleanCode": "<Description of readability debt>. Write 'Acceptable.' if none.",
   "summary": "One sentence executive summary of your actual findings."
 }
+
+NOTE: For suggestions, use the GitHub format with triple backticks and the 'suggestion' keyword.
 
 Format examples:
 - CORRECT locator: "src/auth.ts:5"
@@ -138,8 +142,10 @@ export async function analyzePrDiff(
         riskLevel:       (parsed.riskLevel || 'LOW').toUpperCase() as any,
         security:        ensureString(parsed.security,        'No critical security concerns detected.'),
         securityLocator: ensureString(parsed.securityLocator, ''),
+        securitySuggestion: ensureString(parsed.securitySuggestion, ''),
         logic:           ensureString(parsed.logic,           'Logic appears sound and consistent.'),
         logicLocator:    ensureString(parsed.logicLocator,    ''),
+        logicSuggestion: ensureString(parsed.logicSuggestion, ''),
         optimization:    ensureString(parsed.optimization,    'Performance metrics are within acceptable limits.'),
         cleanCode:       ensureString(parsed.cleanCode || parsed.deadCode, 'Code follows maintainability standards.'),
         summary:         ensureString(parsed.summary,         'Comprehensive summary not provided by Auditor.'),
@@ -160,8 +166,10 @@ export async function analyzePrDiff(
           riskLevel: 'MEDIUM',
           security: `❌ **AI Analysis Failed**: ${errorMsg}. Manual security review required.`,
           securityLocator: '',
+          securitySuggestion: '',
           logic: `❌ **AI Analysis Failed**: ${errorMsg}. Manual logic review required.`,
           logicLocator: '',
+          logicSuggestion: '',
           optimization: '⚠️ Could not assess performance impact due to analysis failure.',
           cleanCode: '⚠️ Could not assess code quality due to analysis failure.',
           summary: `🚨 Analysis interrupted: ${errorMsg}. Please review changes manually.`,

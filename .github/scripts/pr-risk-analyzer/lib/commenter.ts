@@ -11,6 +11,7 @@ import { Octokit } from '@octokit/rest';
 import { LlmAnalysis } from './scoring-rules.js';
 
 const COMMENT_SIGNATURE = '<!-- pr-risk-analyzer-bot -->';
+const INLINE_COMMENT_SIGNATURE = '<!-- pr-risk-analyzer-inline-bot -->';
 
 export interface CommentParams {
   token: string;
@@ -63,7 +64,7 @@ export function extractInlineComments(analysis: LlmAnalysis): InlineComment[] {
 
   console.log(`[PR Risk Analyzer] 🔍 Extracting inline comments from LLM analysis...`);
 
-  const extractFromLocator = (locator: string | undefined, fieldName: string, body: string): void => {
+  const extractFromLocator = (locator: string | undefined, fieldName: string, body: string, suggestion?: string): void => {
     if (!locator || !locator.trim()) {
       console.log(`[PR Risk Analyzer] ℹ️ No ${fieldName} LOCATOR provided`);
       return;
@@ -75,14 +76,20 @@ export function extractInlineComments(analysis: LlmAnalysis): InlineComment[] {
       const path = pathLineMatch[1];
       const line = parseInt(pathLineMatch[2], 10);
       console.log(`[PR Risk Analyzer] ✅ Found ${fieldName} LOCATOR: ${path}:${line}`);
-      comments.push({ path, line, body });
+      
+      let finalBody = body;
+      if (suggestion && suggestion.trim()) {
+        finalBody = `${body}\n\n${suggestion}`;
+      }
+      
+      comments.push({ path, line, body: finalBody });
     } else {
       console.warn(`[PR Risk Analyzer] ⚠️ Invalid ${fieldName} LOCATOR format: ${locator}`);
     }
   };
 
-  extractFromLocator(analysis.securityLocator, 'security', analysis.security);
-  extractFromLocator(analysis.logicLocator, 'logic', analysis.logic);
+  extractFromLocator(analysis.securityLocator, 'security', analysis.security, analysis.securitySuggestion);
+  extractFromLocator(analysis.logicLocator, 'logic', analysis.logic, analysis.logicSuggestion);
 
   console.log(`[PR Risk Analyzer] 📊 Extracted ${comments.length} inline comment(s)`);
   return comments;
@@ -113,13 +120,39 @@ export async function postInlineComments({
     return;
   }
 
-  console.log(`[PR Risk Analyzer] 💬 Attempting to post ${comments.length} inline comment(s)...`);
-
   const octokit = new Octokit({ auth: token });
 
-  // Find diff positions for each comment
+  // ── Fetch existing inline comments to avoid duplicates ───────────────────
+  console.log('[PR Risk Analyzer] 🔍 Checking for existing inline comments...');
+  const existingInlineComments: any[] = [];
+  try {
+    for await (const { data: reviewComments } of octokit.paginate.iterator(
+      octokit.pulls.listReviewComments,
+      { owner, repo, pull_number: prNumber }
+    )) {
+      existingInlineComments.push(...reviewComments.filter((c: any) => c.body?.includes(INLINE_COMMENT_SIGNATURE)));
+    }
+    console.log(`[PR Risk Analyzer] 📊 Found ${existingInlineComments.length} existing bot inline comment(s).`);
+  } catch (err: any) {
+    console.warn('[PR Risk Analyzer] ⚠️ Could not fetch existing inline comments:', err.message);
+  }
+
+  // Find diff positions for each comment and filter out duplicates
   const reviewComments = [];
   for (const comment of comments) {
+    const signedBody = `${INLINE_COMMENT_SIGNATURE}\n${comment.body}`;
+    
+    // Check if this exact comment already exists
+    const isDuplicate = existingInlineComments.some(existing => 
+      existing.path === comment.path && 
+      existing.body.includes(comment.body)
+    );
+
+    if (isDuplicate) {
+      console.log(`[PR Risk Analyzer] ⏭️ Skipping duplicate comment for ${comment.path}:${comment.line}`);
+      continue;
+    }
+
     console.log(`[PR Risk Analyzer] 🔍 Finding position for ${comment.path}:${comment.line}`);
     const position = findDiffPosition(diff, comment.path, comment.line);
     console.log(`[PR Risk Analyzer] 📍 Position found: ${position} for ${comment.path}:${comment.line}`);
@@ -127,7 +160,7 @@ export async function postInlineComments({
       reviewComments.push({
         path: comment.path,
         position,
-        body: comment.body,
+        body: signedBody,
       });
     } else {
       console.warn(`[PR Risk Analyzer] ⚠️ Could not find diff position for ${comment.path}:${comment.line}`);
@@ -135,11 +168,11 @@ export async function postInlineComments({
   }
 
   if (reviewComments.length === 0) {
-    console.warn('[PR Risk Analyzer] ⚠️ No valid positions found for inline comments');
+    console.log('[PR Risk Analyzer] ℹ️ No new inline comments to post.');
     return;
   }
 
-  console.log(`[PR Risk Analyzer] 📝 Creating review with ${reviewComments.length} comment(s)...`);
+  console.log(`[PR Risk Analyzer] 📝 Creating review with ${reviewComments.length} new comment(s)...`);
 
   try {
     const review = await octokit.pulls.createReview({

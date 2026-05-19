@@ -234,6 +234,8 @@ async function run() {
   if (llmAnalysis && prData.headSha) {
     console.log(`[PR Risk Analyzer] 🔍 LLM Analysis - Security: ${llmAnalysis.security.substring(0, 100)}...`);
     console.log(`[PR Risk Analyzer] 🔍 LLM Analysis - Logic: ${llmAnalysis.logic.substring(0, 100)}...`);
+    if (llmAnalysis.securitySuggestion) console.log(`[PR Risk Analyzer] 🔍 Security Suggestion detected`);
+    if (llmAnalysis.logicSuggestion) console.log(`[PR Risk Analyzer] 🔍 Logic Suggestion detected`);
     console.log(`[PR Risk Analyzer] 🔍 Raw LLM Response contains LOCATOR: ${llmAnalysis.raw?.includes('LOCATOR')}`);
     console.log(`[PR Risk Analyzer] 🔍 Raw LLM Response length: ${llmAnalysis.raw?.length}`);
     console.log(`[PR Risk Analyzer] 🔍 Security Locator: ${llmAnalysis.securityLocator}`);

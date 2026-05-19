@@ -64,6 +64,9 @@ export interface FetchParams {
 export async function fetchPrData({ token, owner, repo, prNumber }: FetchParams): Promise<PrData> {
   const octokit = new Octokit({ auth: token });
 
+  // Fetch PR details for head SHA
+  const { data: pr } = await octokit.pulls.get({ owner, repo, pull_number: prNumber });
+
   // Paginate to ensure we get ALL changed files
   const files = await octokit.paginate(
     octokit.pulls.listFiles,
@@ -154,6 +157,7 @@ export async function fetchPrData({ token, owner, repo, prNumber }: FetchParams)
     totalAdditions: files.reduce((s: number, f: any) => s + f.additions, 0),
     totalDeletions: files.reduce((s: number, f: any) => s + f.deletions, 0),
     fullDiff,
+    headSha: pr.head.sha,
   };
 }
 
@@ -182,6 +186,13 @@ export function reorderDiff(diff: string, fileDetails: FileDetail[]): string {
 
     const detail = fileDetails.find(d => d.path === fileName);
     
+    // 🛡️ ANTI-PARROT FIX: Never send changes from the .github folder to the LLM.
+    // If we are editing the auditor's prompt in the same PR, sending that diff
+    // to the LLM will cause it to read the prompt's examples as actual bugs in the code!
+    if (fileName.startsWith('.github/')) {
+      return; 
+    }
+
     if (detail) {
       if (detail.isCritical) {
         priorityChunks.push(fullChunk);

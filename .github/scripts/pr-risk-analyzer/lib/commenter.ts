@@ -64,7 +64,7 @@ export function extractInlineComments(analysis: LlmAnalysis): InlineComment[] {
 
   console.log(`[PR Risk Analyzer] 🔍 Extracting inline comments from LLM analysis...`);
 
-  const extractFromLocator = (locator: string | undefined, fieldName: string, body: string, suggestion?: string): void => {
+  const extractFromLocator = (locator: string | undefined, fieldName: string, body: string, fix?: string): void => {
     if (!locator || !locator.trim()) {
       console.log(`[PR Risk Analyzer] ℹ️ No ${fieldName} LOCATOR provided`);
       return;
@@ -78,8 +78,8 @@ export function extractInlineComments(analysis: LlmAnalysis): InlineComment[] {
       console.log(`[PR Risk Analyzer] ✅ Found ${fieldName} LOCATOR: ${path}:${line}`);
       
       let finalBody = body;
-      if (suggestion && suggestion.trim()) {
-        finalBody = `${body}\n\n${suggestion}`;
+      if (fix && fix.trim()) {
+        finalBody = `${body}\n\n\`\`\`suggestion\n${fix}\n\`\`\``;
       }
       
       comments.push({ path, line, body: finalBody });
@@ -88,8 +88,8 @@ export function extractInlineComments(analysis: LlmAnalysis): InlineComment[] {
     }
   };
 
-  extractFromLocator(analysis.securityLocator, 'security', analysis.security, analysis.securitySuggestion);
-  extractFromLocator(analysis.logicLocator, 'logic', analysis.logic, analysis.logicSuggestion);
+  extractFromLocator(analysis.securityLocator, 'security', analysis.security, analysis.securityFix);
+  extractFromLocator(analysis.logicLocator, 'logic', analysis.logic, analysis.logicFix);
 
   console.log(`[PR Risk Analyzer] 📊 Extracted ${comments.length} inline comment(s)`);
   return comments;

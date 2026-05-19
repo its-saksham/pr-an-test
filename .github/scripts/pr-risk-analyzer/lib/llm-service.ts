@@ -15,15 +15,8 @@ Your job is to identify real bugs that are syntactically correct but logically f
 
 AUDIT STRATEGY:
 - Carefully analyze all code changes for potential issues.
-- Identify "Logic Bombs", "Backdoors".
-- Use only files and line numbers that actually appear in the DIFF
+- Identify "Logic Bombs", "Backdoors", and "Unauthorized Bypasses".
 - Rate severity based on actual impact and likelihood.
-
-SCORING GUIDELINES:
-- CRITICAL (90-100): Severe security or logic defects causing major issues
-- HIGH (70-89): Significant defects with notable impact
-- MEDIUM (30-69): Moderate issues worth addressing
-- LOW (0-29): Minor issues or style concerns
 
 SUGGESTION GUIDELINES:
 - Provide a SURGICAL replacement for the code at the provided locator.
@@ -43,16 +36,20 @@ YOUR EXACT OUTPUT MUST BE THIS JSON STRUCTURE:
   "riskLevel": "CRITICAL, HIGH, MEDIUM, or LOW",
   "security": "<Description of actual security flaws found>",
   "securityLocator": "src/file.ts:5 or empty string (line number only, no 'L' prefix)",
-  "securitySuggestion": "<The exact code replacement to fix the security issue, or empty string. Use GitHub suggestion format.>",
+  "securityFix": "<The CORRECTED code to replace the flawed code, or empty string.>",
   "logic": "<Description of actual logic errors found>",
   "logicLocator": "src/file.ts:10 or empty string",
-  "logicSuggestion": "<The exact code replacement to fix the logic error, or empty string. Use GitHub suggestion format.>",
+  "logicFix": "<The CORRECTED code to replace the flawed code, or empty string.>",
   "optimization": "<Description of performance debt>. Write 'Acceptable.' if none.",
   "cleanCode": "<Description of readability debt>. Write 'Acceptable.' if none.",
   "summary": "One sentence executive summary of your actual findings."
 }
 
-NOTE: For suggestions, use the GitHub format with triple backticks and the 'suggestion' keyword.
+GOLDEN RULE FOR FIXES:
+- Never repeat the bug in the "securityFix" or "logicFix".
+- These fields must contain the CURE, not the SYMPTOM. 
+- If the identified code is a backdoor, the fix is the code that would exist without it.
+- Provide ONLY the plain-text code for the fix; do not use markdown backticks in the fix fields.
 
 Format examples:
 - CORRECT locator: "src/auth.ts:5"
@@ -149,10 +146,10 @@ export async function analyzePrDiff(
         riskLevel:       (parsed.riskLevel || 'LOW').toUpperCase() as any,
         security:        ensureString(parsed.security,        'No critical security concerns detected.'),
         securityLocator: ensureString(parsed.securityLocator, ''),
-        securitySuggestion: ensureString(parsed.securitySuggestion, ''),
+        securityFix:     ensureString(parsed.securityFix, ''),
         logic:           ensureString(parsed.logic,           'Logic appears sound and consistent.'),
         logicLocator:    ensureString(parsed.logicLocator,    ''),
-        logicSuggestion: ensureString(parsed.logicSuggestion, ''),
+        logicFix:        ensureString(parsed.logicFix,        ''),
         optimization:    ensureString(parsed.optimization,    'Performance metrics are within acceptable limits.'),
         cleanCode:       ensureString(parsed.cleanCode || parsed.deadCode, 'Code follows maintainability standards.'),
         summary:         ensureString(parsed.summary,         'Comprehensive summary not provided by Auditor.'),
@@ -173,10 +170,10 @@ export async function analyzePrDiff(
           riskLevel: 'MEDIUM',
           security: `❌ **AI Analysis Failed**: ${errorMsg}. Manual security review required.`,
           securityLocator: '',
-          securitySuggestion: '',
+          securityFix: '',
           logic: `❌ **AI Analysis Failed**: ${errorMsg}. Manual logic review required.`,
           logicLocator: '',
-          logicSuggestion: '',
+          logicFix: '',
           optimization: '⚠️ Could not assess performance impact due to analysis failure.',
           cleanCode: '⚠️ Could not assess code quality due to analysis failure.',
           summary: `🚨 Analysis interrupted: ${errorMsg}. Please review changes manually.`,

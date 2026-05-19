@@ -35,10 +35,10 @@ export interface LlmAnalysis {
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   security: string;
   securityLocator?: string;
-  securitySuggestion?: string;
+  securityFix?: string;
   logic: string;
   logicLocator?: string;
-  logicSuggestion?: string;
+  logicFix?: string;
   optimization: string;
   cleanCode: string;
   summary: string;

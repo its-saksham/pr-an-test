@@ -16,44 +16,17 @@ const MAX_RISKY_FILES_SHOWN = 8;
 // Max number of "passed" checks to list in the summary
 const MAX_PASSED_SHOWN = 5;
 
-/**
- * Formats a LlmAnalysis and PrData into a polished AI-first GitHub Markdown comment.
- */
-export function formatLlmInsights(analysis: LlmAnalysis | null): string {
-  if (!analysis) return '> ⚠️ _No AI Qualitative Review available for this diff._';
+export function renderScoreBar(value: number, max: number, width: number): string {
+  const filled = Math.round((value / max) * width);
+  const empty = Math.max(0, width - filled);
+  const percentage = Math.round((value / max) * 100);
 
-  const riskEmoji = 
-    analysis.riskLevel === 'CRITICAL' ? '🔴' :
-    analysis.riskLevel === 'HIGH' ? '🟠' : 
-    analysis.riskLevel === 'MEDIUM' ? '🟡' : '🟢';
+  // Color coding based on risk level
+  let color = '🟢'; // Green for low risk
+  if (percentage >= 70) color = '🔴'; // Red for high risk
+  else if (percentage >= 40) color = '🟡'; // Yellow for medium risk
 
-  return [
-    '## 🤖 AI Qualitative Review',
-    '',
-    '> _Deep technical audit performed by Paranoid Senior Auditor (Local LLM)._',
-    '',
-    '### 🚦 Risk Assessment',
-    '',
-    `| Risk Score | Risk Level | Recommendation |`,
-    `|------------|------------|----------------|`,
-    `| **${analysis.riskScore}/100** | ${riskEmoji} **${analysis.riskLevel}** | ${analysis.riskLevel === 'CRITICAL' ? '🛑 **STOP: BLOCK MERGE**' : analysis.riskLevel === 'HIGH' ? '🚨 Stop & Review Carefully' : analysis.riskLevel === 'MEDIUM' ? '🔍 Manual Verification Advised' : '✅ Standard Review Process'} |`,
-    '',
-    '### 🚨 Critical Security Audit',
-    analysis.security,
-    '',
-    '### 🧱 Architecture & Logic Flaws',
-    analysis.logic,
-    '',
-    '### 📉 Performance & Technical Debt',
-    analysis.optimization,
-    '',
-    '### 🧹 Clean Code & Maintainability Violations',
-    analysis.deadCode,
-    '',
-    '### 📝 Executive Summary',
-    analysis.summary,
-    '',
-  ].join('\n');
+  return `${color} ${'█'.repeat(filled)}${'░'.repeat(empty)} ${percentage}%`;
 }
 
 /**
@@ -62,33 +35,118 @@ export function formatLlmInsights(analysis: LlmAnalysis | null): string {
 export function formatComment(
   _result: any, 
   prData: PrData, 
-  _delta: any,
+  _delta: any = null,
   llmAnalysis: LlmAnalysis | null = null
 ): string {
   // ── Header ────────────────────────────────────────────────────────────────
   const header = [
-    '# 🚦 AI Senior Auditor Analysis',
+    '# 🚦 **AI-Powered PR Risk Analysis**',
     '',
-    '> **Line-by-line verification** and **logical sabotage detection** powered by local LLM.',
+    '<details>',
+    '<summary>📊 **Analysis Summary**</summary>',
+    '',
+    '> **🔍 Analysis Type**: Line-by-line security & logic verification',
+    '> **🤖 AI Engine**: Local LLM-powered audit',
+    '> **⚡ Processing**: Real-time diff analysis',
+    '',
+    '</details>',
     '',
     '---',
   ].join('\n');
 
   // ── AI Insights ───────────────────────────────────────────────────────────
-  const aiSection = formatLlmInsights(llmAnalysis);
+  let aiSection = '';
+  let aiDetails = '';
+
+  const formatLocatorAwareField = (text: string, fallback: string): string => {
+    const normalized = (text || fallback || '').trim();
+    const locatorMatch = normalized.match(/LOCATOR:\s*\[([^\]]+)\]\s*$/m);
+    const locator = locatorMatch?.[1];
+    const message = locator
+      ? normalized.replace(/LOCATOR:\s*\[[^\]]+\]\s*$/m, '').trim()
+      : normalized;
+
+    const lines = message.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (locator) {
+      const firstLine = `> - ${lines.shift() || ''}`;
+      const restLines = lines.map((line) => `>   ${line}`);
+      return [firstLine, ...restLines, `>   _Locator:_ \`${locator}\``].join('\n');
+    }
+
+    return `> ${lines.join('\n> ')}`;
+  };
+
+  if (!llmAnalysis) {
+    aiSection = [
+      '> [!WARNING]',
+      '> **⚠️ AI Analysis Unavailable**',
+      '> Could not perform qualitative security audit. Check LLM connectivity.',
+      '> Manual code review recommended.',
+    ].join('\n');
+  } else {
+    // Risk level indicators with better visual design
+    let alertType = '[!TIP]';
+    let recommendation = '✅ **APPROVED** - Standard review process';
+    let riskIcon = '🟢';
+    let riskColor = 'green';
+
+    if (llmAnalysis.riskLevel === 'CRITICAL') {
+      alertType = '[!DANGER]';
+      recommendation = '🚫 **BLOCKED** - Critical vulnerabilities detected';
+      riskIcon = '🔴';
+      riskColor = 'red';
+    } else if (llmAnalysis.riskLevel === 'HIGH') {
+      alertType = '[!CAUTION]';
+      recommendation = '⚠️ **STOP & REVIEW** - High-risk changes require careful inspection';
+      riskIcon = '🟠';
+      riskColor = 'orange';
+    } else if (llmAnalysis.riskLevel === 'MEDIUM') {
+      alertType = '[!WARNING]';
+      recommendation = '🔍 **REVIEW REQUIRED** - Manual verification advised';
+      riskIcon = '🟡';
+      riskColor = 'yellow';
+    }
+
+    aiSection = [
+      `## ${riskIcon} **AI Risk Assessment: ${llmAnalysis.riskLevel}**`,
+      '',
+      `> ${alertType}`,
+      `> **Risk Score**: ${renderScoreBar(llmAnalysis.riskScore, 100, 20)}`,
+      `> **Recommendation**: ${recommendation}`,
+      '',
+    ].join('\n');
+
+    aiDetails = [
+      '<details>',
+      '<summary>🔍 **Detailed Analysis**</summary>',
+      '',
+      '> [!IMPORTANT]',
+      '> **🚨 Critical Security Issues**',
+      `> ${formatLocatorAwareField(llmAnalysis.security, '✅ No critical security concerns detected.')}`,
+      '',
+      '> [!WARNING]',
+      '> **🧱 Architecture & Logic Issues**',
+      `> ${formatLocatorAwareField(llmAnalysis.logic, '✅ Logic appears sound and consistent.')}`,
+      '',
+      '> [!TIP]',
+      '> **📈 Performance & Maintainability**',
+      `> *⚡ Performance*: ${formatLocatorAwareField(llmAnalysis.optimization, '✅ Performance metrics are within acceptable limits.')}`,
+      `> *🧹 Code Quality*: ${formatLocatorAwareField(llmAnalysis.cleanCode || 'Acceptable.', '✅ Code follows maintainability standards.')}`,
+      '',
+      `> **📋 Executive Summary**: ${llmAnalysis.summary}`,
+      '',
+      '</details>',
+    ].join('\n');
+  }
 
   // ── PR Context Summary ────────────────────────────────────────────────────
   const contextSummary = [
-    '### 📂 PR Context',
-    '',
-    `| Metric | Value |`,
-    `|--------|-------|`,
-    `| 📁 Files | ${prData.fileCount} |`,
-    `| 📝 Lines | +${prData.totalAdditions} / -${prData.totalDeletions} (${prData.totalChanges} total) |`,
+    '### 📊 PR Context & Metadata',
+    `* **Files Changed:** ${prData.fileCount} (*+${prData.totalAdditions} / -${prData.totalDeletions} lines*)`,
     '',
   ].join('\n');
 
-  // ── Risky Files Table (Based on File Classification) ─────────────────────
+  // ── Risky Files Table ──────────────────────────────────────────────────────
   const riskyFiles = prData.fileDetails
     .filter((f: FileDetail) => f.isCritical || f.isImportant || f.isConfig)
     .sort((a: any, b: any) => b.changes - a.changes)
@@ -101,15 +159,13 @@ export function formatComment(
       if (f.isCritical) tags.push('`critical`');
       if (f.isImportant) tags.push('`important`');
       if (f.isConfig) tags.push('`config`');
-      const changeStr = `+${f.additions} / -${f.deletions}`;
+      const changeStr = `+${f.additions}/-${f.deletions}`;
       return `| \`${f.path}\` | ${changeStr} | ${tags.join(' ')} |`;
     });
 
     riskyFilesSection = [
-      '### ⚙️ High-Impact Components Modified',
-      '',
-      '| File | Changes | Tags |',
-      '|------|---------|------|',
+      '| High Impact Component | Diff | Tags |',
+      '| :--- | :--- | :--- |',
       ...rows,
       '',
     ].join('\n');
@@ -117,20 +173,23 @@ export function formatComment(
 
   // ── Footer ────────────────────────────────────────────────────────────────
   const footer = [
-    '---',
+    '<br>',
+    '<sub>🤖 Authenticated by <strong>Local AI Review</strong> (Gemma 4)</sub>',
     '',
-    '<sub>🤖 Generated by <strong>PR AI Auditor</strong> · ',
-    'Local AI Review (Phi-3) · ',
-    `Analysis run: ${new Date().toUTCString()}</sub>`,
-    '',
-  ].join('');
+  ].join('\n');
 
   return [
-    header,
     aiSection,
+    '---',
+    '<details>',
+    '<summary><b>🔍 View Deep Technical Analysis & Context</b></summary>',
+    '<br>',
+    '',
+    aiDetails,
     '---',
     contextSummary,
     riskyFilesSection,
+    '</details>',
     footer,
   ].join('\n');
 }

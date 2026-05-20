@@ -15,15 +15,16 @@
     "security-test"
   ],
   "dependencies": {
-    "cross-env": "^7.0.3"
+    "cross-env": "^7.0.3",
+    "typescript": "^6.0.3"
   },
   "author": "Antigravity",
   "license": "MIT",
   "devDependencies": {
-    "jest": "^29.7.0",
     "@nestjs/common": "file:src/mocks/nestjs-common",
     "@nestjs/swagger": "file:src/mocks/nestjs-swagger",
     "fastify": "file:src/mocks/fastify",
+    "jest": "^29.7.0",
     "nestjs-cls": "file:src/mocks/nestjs-cls"
   }
 }

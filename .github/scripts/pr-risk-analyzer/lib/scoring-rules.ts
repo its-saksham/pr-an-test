@@ -27,13 +27,18 @@ export interface PrData {
   configFiles: string[];
   fileDetails: FileDetail[];
   fullDiff?: string; // Optional full raw diff for qualitative LLM analysis
+  headSha?: string;
 }
 
 export interface LlmAnalysis {
   riskScore: number;     // 0-100
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   security: string;
+  securityLocator?: string;
+  securityFix?: string;
   logic: string;
+  logicLocator?: string;
+  logicFix?: string;
   optimization: string;
   cleanCode: string;
   summary: string;

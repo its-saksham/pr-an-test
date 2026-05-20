@@ -18,10 +18,10 @@ import { formatComment } from './lib/formatter.js';
 import { postOrUpdateComment, findExistingComment } from './lib/commenter.js';
 import { parsePreviousResult, computeDelta } from './lib/delta.js';
 import { analyzePrDiff, synthesizeKnowledge, initializeProjectDna } from './lib/llm-service.js';
-import { execSync } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
-import process from 'node:process';
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import process from 'process';
 import { Octokit } from '@octokit/rest';
 
 const MEMORY_FILE = 'audit_memory.md';
@@ -89,7 +89,10 @@ async function run() {
   if (llmEndpoint) {
     try {
       console.log(`[PR Risk Analyzer] 🌐 Diagnostic: Pinging LLM at ${llmEndpoint}...`);
-      await fetch(llmEndpoint, { method: 'HEAD' });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s ping timeout
+      await fetch(llmEndpoint, { method: 'HEAD', signal: controller.signal });
+      clearTimeout(timeoutId);
       console.log('[PR Risk Analyzer] 🌐 Diagnostic: LLM Endpoint is reachable.');
     } catch (err: any) {
       console.warn(`[PR Risk Analyzer] 🌐 Diagnostic: LLM Endpoint UNREACHABLE: ${err.message}`);

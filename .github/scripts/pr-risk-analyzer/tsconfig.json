@@ -10,7 +10,8 @@
     "outDir": "./dist",
     "rootDir": ".",
     "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "types": ["node"]
   },
   "include": ["index.ts", "lib/**/*.ts", "tests/**/*.ts", "verify_*.ts"],
   "exclude": ["node_modules", "dist"]

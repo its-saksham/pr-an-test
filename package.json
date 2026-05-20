@@ -20,10 +20,11 @@
   "author": "Antigravity",
   "license": "MIT",
   "devDependencies": {
-    "jest": "^29.7.0",
     "@nestjs/common": "file:src/mocks/nestjs-common",
     "@nestjs/swagger": "file:src/mocks/nestjs-swagger",
+    "@types/node": "^25.9.1",
     "fastify": "file:src/mocks/fastify",
+    "jest": "^29.7.0",
     "nestjs-cls": "file:src/mocks/nestjs-cls"
   }
 }

@@ -182,6 +182,13 @@ export function reorderDiff(diff: string, fileDetails: FileDetail[]): string {
 
     const detail = fileDetails.find(d => d.path === fileName);
     
+    // 🛡️ ANTI-PARROT FIX: Never send changes from the .github folder to the LLM.
+    // If we are editing the auditor's prompt in the same PR, sending that diff
+    // to the LLM will cause it to read the prompt's examples as actual bugs in the code!
+    if (fileName.startsWith('.github/')) {
+      return; 
+    }
+
     if (detail) {
       if (detail.isCritical) {
         priorityChunks.push(fullChunk);

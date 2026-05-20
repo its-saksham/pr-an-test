@@ -10,37 +10,54 @@
 
 import { LlmAnalysis } from './scoring-rules.js';
 
-const SYSTEM_PROMPT = `You are a Paranoid Senior Software Security Auditor. Your job is to perform a high-fidelity audit to identify "Atomic Truths"—bugs that stay syntactically perfect but are logically bankrupt.
+const SYSTEM_PROMPT = `You are a Senior Software Security Auditor analyzing a PR DIFF.
+Your job is to identify real bugs that are syntactically correct but logically flawed.
 
-AUDIT WORKFLOW:
-1. ANALYZE INTENT: First, identify exactly what the code is TRYING to do.
-2. ADVERSARIAL TRACE: Trace the arithmetic and state transitions. Look for: sign flips (+/-), integer underflow, off-by-one, and fail-open logic.
-3. VERIFY INVARIANTS: Ensure project-specific rules are not breached.
+AUDIT STRATEGY:
+- Carefully analyze all code changes for potential issues.
+- Identify "Logic Bombs", "Backdoors", and "Unauthorized Bypasses".
+- Rate severity based on actual impact and likelihood.
 
-MANDATORY OUTPUT RULES:
-- EVERY technical finding MUST be accompanied by a LOCATOR.
-- FORMAT: LOCATOR: [filename:L<line>]
-- EACH LOCATOR MUST BE ON ITS OWN NEW LINE.
-SCORING:
-Assign a 'riskScore' (0-100) and 'riskLevel' (LOW, MEDIUM, HIGH, CRITICAL) based on the consequence of the code change:
-- CRITICAL (90-100): Catastrophic logic/security defect.
-- HIGH (70-89): Significant defect.
-- MEDIUM (30-69): Minor defect or debt.
-- LOW (0-29): Cleanup or style.
+SCORING GUIDELINES:
+- CRITICAL (90-100): Severe security or logic defects causing major issues
+- HIGH (70-89): Significant defects with notable impact
+- MEDIUM (30-69): Moderate issues worth addressing
+- LOW (0-29): Minor issues or style concerns
 
-EXAMPLE RESPONSE:
+SUGGESTION GUIDELINES:
+- Provide a SURGICAL replacement for the code at the provided locator.
+- The suggestion MUST be ONLY the corrected code that should replace the line(s) at the locator.
+- DO NOT include the original flawed code in the suggestion. 
+- A "fix" must resolve the root cause (e.g., if a backdoor is found, the suggestion should simply be to REMOVE it).
+- Ensure the suggestion is a complete, syntactically correct replacement for the identified block.
+
+YOUR EXACT OUTPUT MUST BE THIS JSON STRUCTURE:
 {
-  "riskScore": 95,
-  "riskLevel": "CRITICAL",
-  "security": "Found a potential session hijacking risk due to weak cookie attributes.\\nLOCATOR: [src/auth/session.js:L42]",
-  "logic": "The arithmetic logic in calculateTotal is inverted, causing a rebate instead of a tax charge.\\nLOCATOR: [src/orders/service.js:L15]",
-  "optimization": "Acceptable.",
-  "cleanCode": "Acceptable.",
-  "summary": "CRITICAL logic inversion detected in Order Service."
+  "riskScore": 0,
+  "riskLevel": "CRITICAL, HIGH, MEDIUM, or LOW",
+  "security": "<Description of actual security flaws found>",
+  "securityLocator": "src/file.ts:5 or empty string (line number only, no 'L' prefix)",
+  "securityFix": "<The CORRECTED code to replace the flawed code, or empty string.>",
+  "logic": "<Description of actual logic errors found>",
+  "logicLocator": "src/file.ts:10 or empty string",
+  "logicFix": "<The CORRECTED code to replace the flawed code, or empty string.>",
+  "optimization": "<Description of performance debt>. Write 'Acceptable.' if none.",
+  "cleanCode": "<Description of readability debt>. Write 'Acceptable.' if none.",
+  "summary": "One sentence executive summary of your actual findings."
 }
 
-You MUST respond in strict JSON format.
-Schema: { "riskScore": number, "riskLevel": string, "security": string, "logic": string, "optimization": string, "cleanCode": string, "summary": string }`;
+GOLDEN RULE FOR FIXES:
+- Never repeat the bug in the "securityFix" or "logicFix".
+- These fields must contain the CURE, not the SYMPTOM. 
+- The fix must be PURE CODE only. DO NOT include comments, explanations, or "TODOs".
+- If the identified code should be removed, the fix should be the code that correctly replaces that block (often an empty string or the next logical line).
+- Provide ONLY the plain-text code for the fix; do not use markdown backticks in the fix fields.
+
+Format examples:
+- CORRECT locator: "src/auth.ts:5"
+- CORRECT locator: "src/modules/payment.ts:42"
+- INCORRECT: "src/auth.ts:L5" (do NOT use L prefix)
+- INCORRECT: "src/auth.ts:5-9" (for ranges, use ONLY the first line)`
 
 const MAX_DIFF_LENGTH = 7500;
 
@@ -130,10 +147,13 @@ export async function analyzePrDiff(
         riskScore:       parseInt(String(parsed.riskScore || 0), 10),
         riskLevel:       (parsed.riskLevel || 'LOW').toUpperCase() as any,
         security:        ensureString(parsed.security,        'No critical security concerns detected.'),
+        securityLocator: ensureString(parsed.securityLocator, ''),
+        securityFix:     ensureString(parsed.securityFix, ''),
         logic:           ensureString(parsed.logic,           'Logic appears sound and consistent.'),
+        logicLocator:    ensureString(parsed.logicLocator,    ''),
+        logicFix:        ensureString(parsed.logicFix,        ''),
         optimization:    ensureString(parsed.optimization,    'Performance metrics are within acceptable limits.'),
-        deadCode:        ensureString(parsed.cleanCode || parsed.deadCode, 'Code follows maintainability standards.'),
-        maintainability: ensureString(parsed.summary,         'General maintainability is acceptable.'),
+        cleanCode:       ensureString(parsed.cleanCode || parsed.deadCode, 'Code follows maintainability standards.'),
         summary:         ensureString(parsed.summary,         'Comprehensive summary not provided by Auditor.'),
         raw: content
       };
@@ -144,20 +164,25 @@ export async function analyzePrDiff(
       console.warn(`[PR Risk Analyzer] ⚠️ Attempt ${attempt} failed: ${errorMsg}`);
 
       if (isLastAttempt) {
-        console.error('[PR Risk Analyzer] ❌ Final attempt failed. Surfacing error to PR.');
+        console.error('[PR Risk Analyzer] ❌ All LLM analysis attempts failed');
+        console.error(`[PR Risk Analyzer] 💥 Final Error: ${errorMsg}`);
+        console.error('[PR Risk Analyzer] 🔧 Troubleshooting: Check LLM endpoint connectivity and model availability');
         return {
           riskScore: 50,
           riskLevel: 'MEDIUM',
-          security: `⚠️ LLM Connection Failure: ${errorMsg}`,
-          logic: 'Evaluation skipped due to connection error.',
-          optimization: 'N/A',
-          deadCode: 'N/A',
-          maintainability: 'N/A',
-          summary: `### ❌ AI Evaluation Unavailable\nThe local LLM endpoint at your runner failed to respond after ${RETRY_ATTEMPTS} attempts.\n**Error:** ${errorMsg}`,
-          raw: errorMsg
+          security: `❌ **AI Analysis Failed**: ${errorMsg}. Manual security review required.`,
+          securityLocator: '',
+          securityFix: '',
+          logic: `❌ **AI Analysis Failed**: ${errorMsg}. Manual logic review required.`,
+          logicLocator: '',
+          logicFix: '',
+          optimization: '⚠️ Could not assess performance impact due to analysis failure.',
+          cleanCode: '⚠️ Could not assess code quality due to analysis failure.',
+          summary: `🚨 Analysis interrupted: ${errorMsg}. Please review changes manually.`,
+          raw: `Error: ${errorMsg}`
         };
       }
-      
+
       // Short delay before retry
       await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
     }

@@ -162,14 +162,52 @@ async function run() {
       .map(f => f.path);
 
     const startTime = Date.now();
-    llmAnalysis = await analyzePrDiff(prioritizedDiff, { 
-      endpoint: llmEndpoint, 
-      model: llmModel,
-      priorityFiles: highPriorityFiles
-    }, projectContext);
-    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    
-    console.log(`[PR Risk Analyzer] 🤖 AI Analysis completed in ${duration}s.`);
+    try {
+      llmAnalysis = await analyzePrDiff(prioritizedDiff, { 
+        endpoint: llmEndpoint, 
+        model: llmModel,
+        priorityFiles: highPriorityFiles
+      }, projectContext);
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      
+      console.log(`[PR Risk Analyzer] 🤖 AI Analysis completed in ${duration}s.`);
+      
+      // Attempt to remove the pending label if it exists, since we succeeded
+      try {
+        const { Octokit } = await import('@octokit/rest');
+        const octokit = new Octokit({ auth: token });
+        await octokit.issues.removeLabel({
+          owner,
+          repo,
+          issue_number: prNumber,
+          name: 'ai-analysis-pending'
+        });
+        console.log('[PR Risk Analyzer] ✅ Removed ai-analysis-pending label.');
+      } catch (err: any) {
+        // Ignore 404s (label not found)
+        if (err.status !== 404) {
+          console.warn('[PR Risk Analyzer] ⚠️ Could not remove label:', err.message);
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[PR Risk Analyzer] ⚠️ AI Analysis failed: ${err.message}`);
+      console.log('[PR Risk Analyzer] ℹ️ Falling back to deterministic scoring only.');
+      
+      // Apply the pending label for the cron job to pick up later
+      try {
+        const { Octokit } = await import('@octokit/rest');
+        const octokit = new Octokit({ auth: token });
+        await octokit.issues.addLabels({
+          owner,
+          repo,
+          issue_number: prNumber,
+          labels: ['ai-analysis-pending']
+        });
+        console.log('[PR Risk Analyzer] 🏷️ Added ai-analysis-pending label for future retry.');
+      } catch (labelErr: any) {
+        console.warn('[PR Risk Analyzer] ⚠️ Could not add pending label:', labelErr.message);
+      }
+    }
 
     // ── Stage 2.5: Knowledge Synthesis (Learning & Bootstrapping) ──────────
     if (llmAnalysis) {

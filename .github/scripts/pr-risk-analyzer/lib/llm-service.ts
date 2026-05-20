@@ -48,7 +48,8 @@ YOUR EXACT OUTPUT MUST BE THIS JSON STRUCTURE:
 GOLDEN RULE FOR FIXES:
 - Never repeat the bug in the "securityFix" or "logicFix".
 - These fields must contain the CURE, not the SYMPTOM. 
-- If the identified code is a backdoor, the fix is the code that would exist without it.
+- The fix must be PURE CODE only. DO NOT include comments, explanations, or "TODOs".
+- If the identified code should be removed, the fix should be the code that correctly replaces that block (often an empty string or the next logical line).
 - Provide ONLY the plain-text code for the fix; do not use markdown backticks in the fix fields.
 
 Format examples:
